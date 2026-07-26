@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OpsEarn — Admin</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+:root{
+  --bg:#F3F7F4; --card:#FFFFFF; --ink:#0E1F16; --ink-soft:#5C6B62;
+  --primary:#0D7A5F; --primary-dark:#0A5F49; --amber:#F5A524; --amber-soft:#FEF3DD;
+  --red:#E5484D; --green-bg:#E4F6EE; --line:#E7EDE9;
+  --radius:18px; --radius-sm:12px; --shadow:0 8px 24px rgba(14,31,22,0.08);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{ font-family:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+.num{ font-family:'Space Grotesk', 'Inter', sans-serif; font-weight:700; letter-spacing:-0.02em;}
+#app{ max-width:520px; margin:0 auto; min-height:100vh; padding:18px 18px 40px; }
+.screen{ display:none; } .screen.active{ display:block; }
+
+.balance-card{ background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color:#fff; border-radius:22px; padding:22px 20px; margin-bottom:14px; }
+.balance-card .label{ font-size:12px; opacity:.8; letter-spacing:.08em; text-transform:uppercase;}
+.balance-card .amount{ font-size:30px; margin-top:6px; }
+
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.stat-card{ background:var(--card); border-radius:var(--radius-sm); padding:14px; box-shadow:var(--shadow);}
+.stat-card .v{ font-size:19px;} .stat-card .l{ font-size:11px; color:var(--ink-soft); margin-top:2px;}
+
+.admin-tabs{ display:flex; gap:8px; overflow-x:auto; margin:16px 0; scrollbar-width:none;}
+.admin-tabs::-webkit-scrollbar{display:none;}
+.chip{ flex:0 0 auto; padding:8px 16px; border-radius:20px; background:var(--card); font-size:13px; font-weight:600; color:var(--ink-soft); box-shadow:var(--shadow); border:none; cursor:pointer; white-space:nowrap;}
+.chip.active{ background:var(--primary); color:#fff;}
+
+.task-card{ background:var(--card); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);}
+.task-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+.task-desc{ font-size:13px; margin:8px 0; line-height:1.5; color:var(--ink-soft);}
+
+.field{ margin-bottom:14px; }
+.field label{ font-size:12.5px; color:var(--ink-soft); font-weight:600; display:block; margin-bottom:6px;}
+.field input, .field select{ width:100%; border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14px; font-family:inherit; background:#fff;}
+.btn{ padding:12px 16px; border-radius:14px; border:none; font-weight:700; font-size:13.5px; cursor:pointer; width:100%;}
+.btn-primary{ background:var(--primary); color:#fff;}
+.btn-outline{ background:#fff; color:var(--primary); border:1.5px solid var(--primary);}
+.btn-danger{ background:var(--red); color:#fff;}
+.btn-amber{ background:var(--amber); color:#fff;}
+
+.channel-row{ display:flex; align-items:center; gap:10px; background:var(--green-bg); border-radius:14px; padding:12px 14px; margin-bottom:10px;}
+.channel-row .cic{ width:34px;height:34px;border-radius:50%; background:var(--primary); color:#fff; display:flex;align-items:center;justify-content:center; font-size:15px;}
+.channel-row .cn{ flex:1; font-size:13.5px; font-weight:700;}
+
+.badge{ font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px;}
+.badge.pending{ background:var(--amber-soft); color:#B5730C;}
+.badge.approved{ background:var(--green-bg); color:var(--primary);}
+.badge.rejected{ background:#FDE8E8; color:var(--red);}
+
+.empty-state{ text-align:center; padding:40px 20px; color:var(--ink-soft);}
+.login-box{ max-width:320px; margin:70px auto; text-align:center;}
+.login-box .ic{ font-size:40px; margin-bottom:12px;}
+.icon-btn{ width:38px;height:38px;border-radius:50%;background:var(--card); display:flex;align-items:center;justify-content:center; box-shadow:var(--shadow); border:none; cursor:pointer; font-size:16px;}
+.toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px; font-size:13px; z-index:200; opacity:0; transition:opacity .25s; pointer-events:none;}
+.toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="screen active" id="screen-login">
+    <div class="login-box">
+      <div class="ic">🔐</div>
+      <h2 style="margin-bottom:6px;">OpsEarn Admin</h2>
+      <p style="font-size:12.5px; color:var(--ink-soft); margin-bottom:18px;">অ্যাডমিন প্যানেলে প্রবেশ করতে পাসওয়ার্ড দিন</p>
+      <div class="field"><input type="password" id="admin-pass-input" placeholder="Admin Password"></div>
+      <button class="btn btn-primary" onclick="adminLogin()">প্রবেশ করুন</button>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-admin">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="font-size:19px;">OpsEarn — Admin Panel</h2>
+      <button class="icon-btn" onclick="adminLogout()">✕</button>
+    </div>
+    <div class="admin-tabs">
+      <button class="chip active" data-atab="overview" onclick="setAdminTab('overview')">Overview</button>
+      <button class="chip" data-atab="tasks" onclick="setAdminTab('tasks')">Tasks</button>
+      <button class="chip" data-atab="submissions" onclick="setAdminTab('submissions')">Submissions</button>
+      <button class="chip" data-atab="deposits" onclick="setAdminTab('deposits')">Deposits</button>
+      <button class="chip" data-atab="withdraws" onclick="setAdminTab('withdraws')">Withdraws</button>
+      <button class="chip" data-atab="users" onclick="setAdminTab('users')">Users</button>
+      <button class="chip" data-atab="channels" onclick="setAdminTab('channels')">Channels</button>
+      <button class="chip" data-atab="funding" onclick="setAdminTab('funding')">Funding</button>
+      <button class="chip" data-atab="gifts" onclick="setAdminTab('gifts')">Gift Codes</button>
+    </div>
+    <div id="admin-content"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   ⚠️ এখানে সেই একই Firebase কনফিগ বসান, যেটা index.html তে আছে
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCgfLmSk-bnyjDKLWG3d4IuK_A1L1dTMxY",
+  authDomain: "taksearn.firebaseapp.com",
+  databaseURL: "https://taksearn-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "taksearn",
+  storageBucket: "taksearn.firebasestorage.app",
+  messagingSenderId: "318485856632",
+  appId: "1:318485856632:web:4e8d1e67640545539a488d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
+   কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
+const ADMIN_PASSWORD = "changeme123";
+
+let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
+let currentAdminTab = 'overview';
+let listenersAttached = false;
+
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+function adminLogin(){
+  const val = document.getElementById('admin-pass-input').value;
+  if(val !== ADMIN_PASSWORD){ showToast('ভুল পাসওয়ার্ড'); return; }
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-admin').classList.add('active');
+  if(!listenersAttached){ attachListeners(); listenersAttached = true; }
+  setAdminTab('overview');
+}
+function adminLogout(){
+  document.getElementById('screen-admin').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('admin-pass-input').value = '';
+}
+
+function attachListeners(){
+  db.ref('tasks').on('value', snap=>{ TASKS = snap.val() || {}; renderAdmin(); });
+  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderAdmin(); });
+  db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderAdmin(); });
+  db.ref('deposits').on('value', snap=>{ DEPOSITS = snap.val() || {}; renderAdmin(); });
+  db.ref('withdraws').on('value', snap=>{ WITHDRAWS = snap.val() || {}; renderAdmin(); });
+  db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderAdmin(); });
+  db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; renderAdmin(); });
+  db.ref('gift_codes').on('value', snap=>{ GIFT_CODES = snap.val() || {}; renderAdmin(); });
+}
+
+function setAdminTab(tab){
+  currentAdminTab = tab;
+  document.querySelectorAll('#screen-admin .chip').forEach(c=>c.classList.toggle('active', c.dataset.atab===tab));
+  renderAdmin();
+}
+
+function renderAdmin(){
+  const box = document.getElementById('admin-content');
+  if(!box) return;
+  if(currentAdminTab==='overview'){
+    const totalUsers = Object.keys(USERS||{}).length;
+    let totalPaid=0; Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved') totalPaid+=Number(s.amount||0); });
+    const pendingSub = Object.values(SUBMISSIONS||{}).filter(s=>s.status==='pending').length;
+    const pendingDep = Object.values(DEPOSITS||{}).filter(d=>d.status==='pending').length;
+    const pendingWd = Object.values(WITHDRAWS||{}).filter(w=>w.status==='pending').length;
+    box.innerHTML = `
+    <div class="balance-card">
+      <div class="label">Funding Pool Balance</div>
+      <div class="amount num">৳ ${FUNDING_POOL.toFixed(2)}</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="v num">${totalUsers}</div><div class="l">Total Users</div></div>
+      <div class="stat-card"><div class="v num">৳${totalPaid}</div><div class="l">Total Paid</div></div>
+      <div class="stat-card"><div class="v num">${pendingSub}</div><div class="l">Pending Submissions</div></div>
+      <div class="stat-card"><div class="v num">${pendingDep+pendingWd}</div><div class="l">Pending Deposit/Withdraw</div></div>
+    </div>`;
+  }
+  else if(currentAdminTab==='tasks'){
+    const rows = Object.entries(TASKS||{}).sort((a,b)=>b[1].at-a[1].at);
+    box.innerHTML = rows.map(([id,t])=>`
+      <div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">${escapeHtml(t.title)}</div><span class="badge ${t.status}">${t.status}</span></div>
+        <div class="task-desc">${t.category} · ৳${t.pay} · ${t.completedCount||0}/${t.slots} slots</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          ${t.status!=='approved' ? `<button class="btn btn-primary" style="padding:9px;" onclick="adminSetTaskStatus('${id}','approved')">Approve</button>`:''}
+          ${t.status!=='rejected' ? `<button class="btn btn-outline" style="padding:9px;" onclick="adminSetTaskStatus('${id}','rejected')">Reject</button>`:''}
+          <button class="btn btn-danger" style="padding:9px;" onclick="adminDeleteTask('${id}')">Delete</button>
+        </div>
+      </div>`).join('') || '<div class="empty-state">কোনো টাস্ক নেই</div>';
+  }
+  else if(currentAdminTab==='submissions'){
+    const rows = Object.entries(SUBMISSIONS||{}).sort((a,b)=>b[1].at-a[1].at);
+    box.innerHTML = rows.map(([id,s])=>`
+      <div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">${escapeHtml(s.taskTitle)}</div><span class="badge ${s.status}">${s.status}</span></div>
+        <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}<br>UID: ${escapeHtml(s.proofUid)}<br>Proof: ${escapeHtml(s.proofShot)}</div>
+        ${s.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewSubmission('${id}','approved')">Approve</button>
+          <button class="btn btn-danger" style="padding:9px;" onclick="adminReviewSubmission('${id}','rejected')">Reject</button>
+        </div>` : ''}
+      </div>`).join('') || '<div class="empty-state">কোনো সাবমিশন নেই</div>';
+  }
+  else if(currentAdminTab==='deposits'){
+    const rows = Object.entries(DEPOSITS||{}).sort((a,b)=>b[1].at-a[1].at);
+    box.innerHTML = rows.map(([id,d])=>`
+      <div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">৳${d.amount} · ${d.method}</div><span class="badge ${d.status}">${d.status}</span></div>
+        <div class="task-desc">👤 ${escapeHtml(d.userName)}<br>TrxID: ${escapeHtml(d.trxid)}</div>
+        ${d.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewDeposit('${id}','approved')">Approve</button>
+          <button class="btn btn-danger" style="padding:9px;" onclick="adminReviewDeposit('${id}','rejected')">Reject</button>
+        </div>` : ''}
+      </div>`).join('') || '<div class="empty-state">কোনো ডিপোজিট নেই</div>';
+  }
+  else if(currentAdminTab==='withdraws'){
+    const rows = Object.entries(WITHDRAWS||{}).sort((a,b)=>b[1].at-a[1].at);
+    box.innerHTML = rows.map(([id,w])=>`
+      <div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">৳${w.amount}</div><span class="badge ${w.status}">${w.status}</span></div>
+        <div class="task-desc">👤 ${escapeHtml(w.userName)}<br>নাম্বার: ${escapeHtml(w.number)}</div>
+        ${w.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
+          <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewWithdraw('${id}','approved')">Paid</button>
+          <button class="btn btn-danger" style="padding:9px;" onclick="adminReviewWithdraw('${id}','rejected')">Reject</button>
+        </div>` : ''}
+      </div>`).join('') || '<div class="empty-state">কোনো উইথড্র নেই</div>';
+  }
+  else if(currentAdminTab==='users'){
+    const rows = Object.entries(USERS||{}).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+    box.innerHTML = rows.map(([id,u])=>`
+      <div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">${escapeHtml(u.name)}</div><div class="num">৳${(u.balance||0).toFixed(2)}</div></div>
+        <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <input type="number" placeholder="+/- amount" id="adj-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
+          <button class="btn btn-primary" style="padding:9px 14px; width:auto;" onclick="adminAdjustBalance('${id}')">Apply</button>
+        </div>
+      </div>`).join('') || '<div class="empty-state">কোনো ইউজার নেই</div>';
+  }
+  else if(currentAdminTab==='channels'){
+    const rows = Object.entries(REQUIRED_CHANNELS||{});
+    box.innerHTML = `
+      <div class="task-card">
+        <div class="field"><label>চ্যানেলের নাম</label><input id="ch-name" placeholder="যেমন: Official Channel"></div>
+        <div class="field"><label>চ্যানেল লিংক</label><input id="ch-url" placeholder="https://t.me/..."></div>
+        <button class="btn btn-primary" onclick="adminAddChannel()">চ্যানেল যোগ করুন</button>
+      </div>
+      ${rows.map(([id,c])=>`
+        <div class="channel-row">
+          <div class="cic">📢</div>
+          <div class="cn">${escapeHtml(c.name)}</div>
+          <button class="btn btn-danger" style="width:auto; padding:7px 14px; font-size:11.5px;" onclick="adminRemoveChannel('${id}')">Remove</button>
+        </div>`).join('') || '<div class="empty-state">কোনো চ্যানেল যোগ করা হয়নি</div>'}
+    `;
+  }
+  else if(currentAdminTab==='funding'){
+    box.innerHTML = `
+      <div class="balance-card">
+        <div class="label">Business Funding Pool</div>
+        <div class="amount num">৳ ${FUNDING_POOL.toFixed(2)}</div>
+      </div>
+      <div class="field"><label>নিজের ব্যবসার তহবিল থেকে ফান্ড যোগ করুন (৳)</label><input id="fund-amount" type="number" placeholder="যেমন: 5000"></div>
+      <button class="btn btn-primary" onclick="adminAddFunding()">Add Funds</button>
+    `;
+  }
+  else if(currentAdminTab==='gifts'){
+    const rows = Object.entries(GIFT_CODES||{});
+    box.innerHTML = `
+      <div class="task-card">
+        <div class="field"><label>নতুন কোড</label><input id="gift-code-input" placeholder="যেমন: WELCOME50" style="text-transform:uppercase;"></div>
+        <div class="field"><label>পরিমাণ (৳)</label><input id="gift-amount-input" type="number" placeholder="যেমন: 50"></div>
+        <button class="btn btn-amber" onclick="adminAddGiftCode()">কোড তৈরি করুন</button>
+      </div>
+      ${rows.map(([code,g])=>`
+        <div class="channel-row">
+          <div class="cic">🎁</div>
+          <div class="cn">${code} · ৳${g.amount}</div>
+          <button class="btn btn-danger" style="width:auto; padding:7px 14px; font-size:11.5px;" onclick="adminDeleteGiftCode('${code}')">Delete</button>
+        </div>`).join('') || '<div class="empty-state">কোনো গিফট কোড নেই</div>'}
+    `;
+  }
+}
+
+function adminSetTaskStatus(id,status){ db.ref('tasks/'+id+'/status').set(status); showToast('আপডেট হয়েছে'); }
+function adminDeleteTask(id){ db.ref('tasks/'+id).remove(); }
+
+function adminReviewSubmission(id, status){
+  const s = SUBMISSIONS[id];
+  if(status==='approved' && FUNDING_POOL < Number(s.amount)){
+    showToast('ফান্ডিং পুলে যথেষ্ট টাকা নেই — আগে Funding ট্যাব থেকে ফান্ড যোগ করুন');
+    return;
+  }
+  db.ref('submissions/'+id+'/status').set(status);
+  if(status==='approved'){
+    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(s.amount); u.withdrawable=(u.withdrawable||0)+Number(s.amount); u.tasksDone=(u.tasksDone||0)+1; } return u; });
+    db.ref('tasks/'+s.taskId+'/completedCount').transaction(c=>(c||0)+1);
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(s.amount));
+    db.ref('transactions/'+s.userId).push({type:'task', amount:Number(s.amount), note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
+  }
+  showToast('রিভিউ সম্পন্ন');
+}
+
+function adminReviewDeposit(id, status){
+  const d = DEPOSITS[id];
+  db.ref('deposits/'+id+'/status').set(status);
+  if(status==='approved'){
+    db.ref('users/'+d.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(d.amount); } return u; });
+    db.ref('transactions/'+d.userId).push({type:'deposit', amount:Number(d.amount), note:'Deposit via '+d.method, status:'approved', at:Date.now()});
+  }
+  showToast('রিভিউ সম্পন্ন');
+}
+
+function adminReviewWithdraw(id, status){
+  const w = WITHDRAWS[id];
+  db.ref('withdraws/'+id+'/status').set(status);
+  db.ref('users/'+w.userId).transaction(u=>{
+    if(u){
+      u.pending = Math.max(0,(u.pending||0)-Number(w.amount));
+      if(status==='approved'){ u.balance=(u.balance||0)-Number(w.amount); u.totalWithdrawn=(u.totalWithdrawn||0)+Number(w.amount); }
+      else { u.withdrawable=(u.withdrawable||0)+Number(w.amount); }
+    }
+    return u;
+  });
+  db.ref('transactions/'+w.userId).push({type:'withdraw', amount:-Number(w.amount), note: status==='approved'?'Withdraw paid':'Withdraw rejected', status, at:Date.now()});
+  showToast('রিভিউ সম্পন্ন');
+}
+
+function adminAdjustBalance(userId){
+  const val = Number(document.getElementById('adj-'+userId).value);
+  if(!val) return;
+  if(val > 0 && FUNDING_POOL < val){ showToast('ফান্ডিং পুলে যথেষ্ট টাকা নেই'); return; }
+  db.ref('users/'+userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+val; if(val>0) u.withdrawable=(u.withdrawable||0)+val; } return u; });
+  if(val > 0) db.ref('settings/fundingPool').transaction(v=>(v||0)-val);
+  db.ref('transactions/'+userId).push({type:'adjust', amount:val, note:'Admin adjustment', status:'approved', at:Date.now()});
+  showToast('ব্যালেন্স আপডেট হয়েছে');
+}
+
+function adminAddChannel(){
+  const name = document.getElementById('ch-name').value.trim();
+  const url = document.getElementById('ch-url').value.trim();
+  if(!name || !url){ showToast('নাম ও লিংক দিন'); return; }
+  db.ref('settings/requiredChannels').push({name, url});
+  document.getElementById('ch-name').value=''; document.getElementById('ch-url').value='';
+  showToast('চ্যানেল যোগ হয়েছে');
+}
+function adminRemoveChannel(id){ db.ref('settings/requiredChannels/'+id).remove(); }
+
+function adminAddFunding(){
+  const amount = Number(document.getElementById('fund-amount').value);
+  if(!amount) return;
+  db.ref('settings/fundingPool').transaction(v=>(v||0)+amount);
+  db.ref('funding_log').push({amount, note:'Business capital added', at:Date.now()});
+  document.getElementById('fund-amount').value='';
+  showToast('ফান্ড যোগ হয়েছে');
+}
+
+function adminAddGiftCode(){
+  const code = document.getElementById('gift-code-input').value.trim().toUpperCase();
+  const amount = Number(document.getElementById('gift-amount-input').value);
+  if(!code || !amount){ showToast('কোড ও পরিমাণ দিন'); return; }
+  db.ref('gift_codes/'+code).set({amount, at:Date.now()});
+  document.getElementById('gift-code-input').value=''; document.getElementById('gift-amount-input').value='';
+  showToast('গিফট কোড তৈরি হয়েছে');
+}
+function adminDeleteGiftCode(code){ db.ref('gift_codes/'+code).remove(); }
+</script>
+</body>
+</html>
