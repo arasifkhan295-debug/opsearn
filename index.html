@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OpsEarn</title>
+
+<!-- Telegram Mini App SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<!-- Firebase (compat SDK — works with plain script tags, no build tools needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<style>
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --bg:#F3F7F4;
+  --card:#FFFFFF;
+  --ink:#0E1F16;
+  --ink-soft:#5C6B62;
+  --primary:#0D7A5F;
+  --primary-dark:#0A5F49;
+  --amber:#F5A524;
+  --amber-soft:#FEF3DD;
+  --red:#E5484D;
+  --green-bg:#E4F6EE;
+  --line:#E7EDE9;
+  --radius:18px;
+  --radius-sm:12px;
+  --shadow:0 8px 24px rgba(14,31,22,0.08);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+}
+.num{ font-family:'Space Grotesk', 'Inter', sans-serif; font-weight:700; letter-spacing:-0.02em;}
+
+#app{
+  max-width:480px;
+  margin:0 auto;
+  min-height:100vh;
+  background:var(--bg);
+  position:relative;
+  padding-bottom:82px;
+}
+
+/* Top bar */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 18px 8px;
+}
+.topbar .brand{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:17px;}
+.topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);}
+.icon-btn{
+  width:38px;height:38px;border-radius:50%;background:var(--card);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow); border:none; cursor:pointer; font-size:16px;
+}
+
+.screen{ display:none; padding:6px 18px 24px; animation:fadeIn .25s ease; }
+.screen.active{ display:block; }
+@keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+/* Balance hero card */
+.balance-card{
+  background:linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color:#fff; border-radius:22px; padding:22px 20px; margin-top:8px;
+  position:relative; overflow:hidden;
+}
+.balance-card::after{
+  content:""; position:absolute; right:-40px; top:-40px; width:140px; height:140px;
+  border-radius:50%; background:rgba(255,255,255,0.08);
+}
+.balance-card .label{ font-size:12px; opacity:.8; letter-spacing:.08em; text-transform:uppercase;}
+.balance-card .amount{ font-size:34px; margin:6px 0 16px; }
+.balance-row{ display:flex; gap:10px; }
+.balance-chip{ flex:1; background:rgba(255,255,255,0.12); border-radius:12px; padding:10px 12px;}
+.balance-chip .t{ font-size:10px; opacity:.75; text-transform:uppercase; letter-spacing:.06em;}
+.balance-chip .v{ font-size:15px; margin-top:2px;}
+
+/* Quick actions */
+.quick-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:18px 0;}
+.quick-item{ display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:none; cursor:pointer;}
+.quick-item .ic{ width:52px;height:52px;border-radius:16px; display:flex;align-items:center;justify-content:center; font-size:20px; box-shadow:var(--shadow); background:var(--card);}
+.quick-item span{ font-size:11.5px; color:var(--ink-soft); font-weight:600;}
+
+.section-title{ display:flex; align-items:center; justify-content:space-between; margin:20px 0 10px;}
+.section-title h3{ font-size:15px; }
+.section-title a{ font-size:12.5px; color:var(--primary); font-weight:600; text-decoration:none;}
+
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.stat-card{ background:var(--card); border-radius:var(--radius-sm); padding:14px; box-shadow:var(--shadow);}
+.stat-card .v{ font-size:19px;}
+.stat-card .l{ font-size:11px; color:var(--ink-soft); margin-top:2px;}
+
+/* Task cards */
+.chip-row{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 6px; scrollbar-width:none;}
+.chip-row::-webkit-scrollbar{display:none;}
+.chip{ flex:0 0 auto; padding:8px 16px; border-radius:20px; background:var(--card); font-size:13px; font-weight:600; color:var(--ink-soft); box-shadow:var(--shadow); border:none; cursor:pointer; white-space:nowrap;}
+.chip.active{ background:var(--primary); color:#fff;}
+
+.task-card{ background:var(--card); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow); cursor:pointer;}
+.task-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+.task-icon{ width:40px;height:40px;border-radius:12px; background:var(--amber-soft); display:flex; align-items:center; justify-content:center; font-size:18px;}
+.task-pay{ text-align:right; }
+.task-pay .amt{ color:var(--primary); font-size:17px;}
+.task-pay .per{ font-size:10px; color:var(--ink-soft);}
+.task-desc{ font-size:13.5px; margin:10px 0 8px; line-height:1.5;}
+.task-meta{ display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--ink-soft);}
+.progress-bar{ height:5px; background:var(--line); border-radius:6px; margin-top:8px; overflow:hidden;}
+.progress-fill{ height:100%; background:var(--primary); border-radius:6px;}
+
+/* Bottom nav */
+.bottom-nav{
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+  width:100%; max-width:480px; background:var(--card);
+  display:flex; align-items:center; justify-content:space-around;
+  padding:10px 6px 14px; box-shadow:0 -4px 20px rgba(14,31,22,0.08);
+  border-top-left-radius:20px; border-top-right-radius:20px; z-index:50;
+}
+.nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; color:var(--ink-soft); font-size:10.5px; font-weight:600; cursor:pointer;}
+.nav-item.active{ color:var(--primary); }
+.nav-item .nic{ font-size:19px; }
+.nav-fab{
+  width:54px;height:54px;border-radius:50%; background:var(--amber);
+  display:flex;align-items:center;justify-content:center; color:#fff; font-size:24px;
+  box-shadow:0 6px 16px rgba(245,165,36,0.4); border:none; margin-top:-26px; cursor:pointer;
+}
+
+/* Modal / sheet */
+.overlay{ position:fixed; inset:0; background:rgba(14,31,22,0.45); display:none; align-items:flex-end; justify-content:center; z-index:100;}
+.overlay.active{ display:flex; }
+.sheet{ background:var(--bg); width:100%; max-width:480px; border-top-left-radius:24px; border-top-right-radius:24px; padding:20px; max-height:88vh; overflow-y:auto; animation:slideUp .25s ease;}
+@keyframes slideUp{ from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+.sheet-handle{ width:40px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 14px;}
+.sheet h2{ font-size:18px; margin-bottom:14px;}
+.field{ margin-bottom:14px; }
+.field label{ font-size:12.5px; color:var(--ink-soft); font-weight:600; display:block; margin-bottom:6px;}
+.field input, .field textarea, .field select{
+  width:100%; border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14px; font-family:inherit; background:#fff;
+}
+.field textarea{ resize:vertical; min-height:80px;}
+.btn{ width:100%; padding:14px; border-radius:14px; border:none; font-weight:700; font-size:14.5px; cursor:pointer;}
+.btn-primary{ background:var(--primary); color:#fff;}
+.btn-amber{ background:var(--amber); color:#fff;}
+.btn-outline{ background:#fff; color:var(--primary); border:1.5px solid var(--primary);}
+.btn-danger{ background:var(--red); color:#fff;}
+.action-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.action-card{ background:var(--card); border-radius:16px; padding:20px 12px; text-align:center; box-shadow:var(--shadow); border:none; cursor:pointer;}
+.action-card .ic{ font-size:26px; margin-bottom:8px;}
+.action-card span{ font-size:13px; font-weight:700;}
+
+/* Profile */
+.profile-head{ text-align:center; padding:20px 0 10px;}
+.avatar{ width:78px;height:78px; border-radius:50%; background:linear-gradient(135deg,var(--primary),var(--amber)); display:flex;align-items:center;justify-content:center; color:#fff; font-size:28px; font-weight:700; margin:0 auto 10px;}
+.uid-tag{ font-size:12px; color:var(--ink-soft); }
+.menu-list{ background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-top:16px;}
+.menu-row{ display:flex; align-items:center; gap:12px; padding:15px 16px; border-bottom:1px solid var(--line); cursor:pointer;}
+.menu-row:last-child{ border-bottom:none;}
+.menu-row .mic{ width:36px;height:36px;border-radius:10px; display:flex;align-items:center;justify-content:center; font-size:16px; background:var(--green-bg);}
+.menu-row .mt{ flex:1;}
+.menu-row .mt .m1{ font-size:14px; font-weight:600;}
+.menu-row .mt .m2{ font-size:11.5px; color:var(--ink-soft);}
+
+/* Wallet tx list */
+.tx-row{ display:flex; align-items:center; gap:12px; background:var(--card); border-radius:var(--radius-sm); padding:14px; margin-bottom:10px; box-shadow:var(--shadow);}
+.tx-ic{ width:38px;height:38px;border-radius:50%; display:flex;align-items:center;justify-content:center; font-size:16px; background:var(--green-bg); color:var(--primary);}
+.tx-ic.out{ background:#FDE8E8; color:var(--red);}
+.tx-info{ flex:1;}
+.tx-info .n{ font-size:13.5px; font-weight:600;}
+.tx-info .s{ font-size:11px; color:var(--ink-soft);}
+.tx-amt{ font-size:14px; font-weight:700;}
+.tx-amt.plus{ color:var(--primary);}
+.tx-amt.minus{ color:var(--red);}
+
+.badge{ font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px;}
+.badge.pending{ background:var(--amber-soft); color:#B5730C;}
+.badge.approved{ background:var(--green-bg); color:var(--primary);}
+.badge.rejected{ background:#FDE8E8; color:var(--red);}
+
+.empty-state{ text-align:center; padding:50px 20px; color:var(--ink-soft);}
+.empty-state .eic{ font-size:38px; margin-bottom:10px;}
+
+/* Admin */
+.channel-row{ display:flex; align-items:center; gap:10px; background:var(--green-bg); border-radius:14px; padding:12px 14px; margin-bottom:10px;}
+.channel-row .cic{ width:34px;height:34px;border-radius:50%; background:var(--primary); color:#fff; display:flex;align-items:center;justify-content:center; font-size:15px;}
+.channel-row .cn{ flex:1; font-size:13.5px; font-weight:700;}
+.channel-row a{ background:var(--primary); color:#fff; font-size:11.5px; font-weight:700; padding:7px 14px; border-radius:20px; text-decoration:none;}
+.admin-tabs{ display:flex; gap:8px; overflow-x:auto; margin-bottom:16px;}
+.admin-login-box{ max-width:340px; margin:80px auto; text-align:center;}
+.admin-login-box .ic{ font-size:40px; margin-bottom:12px;}
+.toast{
+  position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px; font-size:13px;
+  z-index:200; opacity:0; transition:opacity .25s; pointer-events:none;
+}
+.toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> OpsEarn</div>
+    <button class="icon-btn" onclick="openSupport()">🎧</button>
+  </div>
+
+  <!-- ============ HOME ============ -->
+  <div class="screen active" id="screen-home">
+    <div class="balance-card">
+      <div class="label">Total Balance</div>
+      <div class="amount num" id="home-balance">৳ 0.00</div>
+      <div class="balance-row">
+        <div class="balance-chip"><div class="t">Pending</div><div class="v num" id="home-pending">৳0</div></div>
+        <div class="balance-chip"><div class="t">Withdrawable</div><div class="v num" id="home-withdrawable">৳0</div></div>
+        <div class="balance-chip"><div class="t">Referrals</div><div class="v num" id="home-refcount">0</div></div>
+      </div>
+    </div>
+
+    <div class="quick-grid">
+      <button class="quick-item" onclick="showScreen('tasks')"><div class="ic">✅</div><span>Tasks</span></button>
+      <button class="quick-item" onclick="showScreen('wallet')"><div class="ic">💼</div><span>Wallet</span></button>
+      <button class="quick-item" onclick="openRefer()"><div class="ic">👥</div><span>Refer</span></button>
+      <button class="quick-item" onclick="openSheet('sheet-deposit')"><div class="ic">💰</div><span>Deposit</span></button>
+    </div>
+
+    <div class="section-title"><h3>লাইভ পরিসংখ্যান</h3></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="v num" id="stat-tasksdone">0</div><div class="l">Tasks Done</div></div>
+      <div class="stat-card"><div class="v num" id="stat-totalpaid">৳0</div><div class="l">Total Paid</div></div>
+      <div class="stat-card"><div class="v num" id="stat-totalusers">0</div><div class="l">Total Users</div></div>
+      <div class="stat-card"><div class="v num" id="stat-mytasks">0</div><div class="l">আমার সম্পন্ন টাস্ক</div></div>
+    </div>
+
+    <div class="section-title"><h3>সাম্প্রতিক টাস্ক</h3><a onclick="showScreen('tasks')">সব দেখুন</a></div>
+    <div id="home-recent-tasks"></div>
+  </div>
+
+  <!-- ============ TASKS ============ -->
+  <div class="screen" id="screen-tasks">
+    <div style="text-align:center; padding:10px 0 4px;">
+      <h2 style="font-size:19px;">Available Tasks</h2>
+      <p style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">টাস্ক সম্পন্ন করুন, প্রকৃত টাকা আয় করুন</p>
+    </div>
+    <div class="chip-row" id="task-filter-row"></div>
+    <div id="task-list"></div>
+  </div>
+
+  <!-- ============ WALLET ============ -->
+  <div class="screen" id="screen-wallet">
+    <div class="balance-card" style="margin-top:14px;">
+      <div class="label">Main Wallet Balance</div>
+      <div class="amount num" id="wallet-balance">৳ 0.00</div>
+      <div class="balance-row">
+        <div class="balance-chip"><div class="t">Total Earned</div><div class="v num" id="wallet-earned">৳0</div></div>
+        <div class="balance-chip"><div class="t">Total Withdrawn</div><div class="v num" id="wallet-withdrawn">৳0</div></div>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin:16px 0;">
+      <button class="btn btn-outline" onclick="openSheet('sheet-deposit')">+ Add Deposit</button>
+      <button class="btn btn-primary" onclick="openSheet('sheet-withdraw')">Withdraw</button>
+    </div>
+    <div class="section-title"><h3>Transaction History</h3></div>
+    <div id="tx-list"></div>
+  </div>
+
+  <!-- ============ PROFILE ============ -->
+  <div class="screen" id="screen-profile">
+    <div class="profile-head">
+      <div class="avatar" id="profile-initial">?</div>
+      <div style="font-size:19px; font-weight:700;" id="profile-name">—</div>
+      <div class="uid-tag">UID: <span id="profile-uid">—</span></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="v num" id="profile-tasksdone">0</div><div class="l">Tasks Done</div></div>
+      <div class="stat-card"><div class="v num" id="profile-referrals">0</div><div class="l">Referrals</div></div>
+    </div>
+    <div class="menu-list">
+      <div class="menu-row" onclick="openWalletSheet()">
+        <div class="mic">📱</div>
+        <div class="mt"><div class="m1">Wallet Number</div><div class="m2" id="profile-wallet-preview">উইথড্রর জন্য নাম্বার সেট করুন</div></div>
+        <div>›</div>
+      </div>
+      <div class="menu-row" onclick="openSheet('sheet-giftcode')">
+        <div class="mic">🎁</div>
+        <div class="mt"><div class="m1">Redeem Gift Code</div><div class="m2">একটা কোড থাকলে এখানে দিন</div></div>
+        <div>›</div>
+      </div>
+      <div class="menu-row" onclick="openRefer()">
+        <div class="mic">👥</div>
+        <div class="mt"><div class="m1">Invite Friends</div><div class="m2">প্রতি রেফারে ৳5 আয় করুন</div></div>
+        <div>›</div>
+      </div>
+      <div class="menu-row" onclick="openSheet('sheet-mysubmissions')">
+        <div class="mic">📋</div>
+        <div class="mt"><div class="m1">My Submissions</div><div class="m2">আপনার জমা দেওয়া টাস্ক</div></div>
+        <div>›</div>
+      </div>
+      <div class="menu-row" onclick="openSupport()">
+        <div class="mic">🎧</div>
+        <div class="mt"><div class="m1">Help & Support</div><div class="m2">24/7 Admin Support</div></div>
+        <div>›</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ BOTTOM NAV ============ -->
+<div class="bottom-nav">
+  <button class="nav-item active" data-nav="home" onclick="showScreen('home')"><span class="nic">🏠</span>Home</button>
+  <button class="nav-item" data-nav="tasks" onclick="showScreen('tasks')"><span class="nic">✅</span>Tasks</button>
+  <button class="nav-fab" onclick="openSheet('sheet-fab')">+</button>
+  <button class="nav-item" data-nav="wallet" onclick="showScreen('wallet')"><span class="nic">💼</span>Wallet</button>
+  <button class="nav-item" data-nav="profile" onclick="showScreen('profile')"><span class="nic">👤</span>Profile</button>
+</div>
+
+<!-- ============ SHEETS / MODALS ============ -->
+
+<div class="overlay" id="sheet-fab" onclick="closeSheetBg(event,'sheet-fab')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="action-grid">
+      <button class="action-card" onclick="closeSheet('sheet-fab'); openSheet('sheet-posttask')"><div class="ic">📣</div><span>Post Task</span></button>
+      <button class="action-card" onclick="closeSheet('sheet-fab'); openSheet('sheet-deposit')"><div class="ic">💰</div><span>Deposit</span></button>
+      <button class="action-card" onclick="closeSheet('sheet-fab'); openSheet('sheet-withdraw')"><div class="ic">🏧</div><span>Withdraw</span></button>
+      <button class="action-card" onclick="closeSheet('sheet-fab'); openRefer()"><div class="ic">👥</div><span>Refer & Earn</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-taskdetail" onclick="closeSheetBg(event,'sheet-taskdetail')">
+  <div class="sheet" id="taskdetail-body"></div>
+</div>
+
+<div class="overlay" id="sheet-posttask" onclick="closeSheetBg(event,'sheet-posttask')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>নতুন টাস্ক পোস্ট করুন</h2>
+    <div class="field"><label>টাস্কের শিরোনাম</label><input id="pt-title" placeholder="যেমন: Facebook পেজ লাইক করুন"></div>
+    <div class="field"><label>বিবরণ</label><textarea id="pt-desc" placeholder="ধাপে ধাপে নির্দেশনা লিখুন"></textarea></div>
+    <div class="field"><label>ক্যাটাগরি</label>
+      <select id="pt-category"><option>Facebook</option><option>TikTok</option><option>YouTube</option><option>Instagram</option><option>Other</option></select>
+    </div>
+    <div class="field"><label>পারিশ্রমিক (৳ প্রতি টাস্ক)</label><input id="pt-pay" type="number" placeholder="যেমন: 5"></div>
+    <div class="field"><label>মোট স্লট সংখ্যা</label><input id="pt-slots" type="number" placeholder="যেমন: 100"></div>
+    <button class="btn btn-primary" onclick="submitNewTask()">রিভিউয়ের জন্য পাঠান</button>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন অনুমোদনের পর টাস্কটি লিস্টে দেখা যাবে।</p>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-deposit" onclick="closeSheetBg(event,'sheet-deposit')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>ডিপোজিট করুন</h2>
+    <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"></div>
+    <div class="field"><label>পেমেন্ট মেথড</label>
+      <select id="dep-method"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
+    </div>
+    <div class="field"><label>ট্রানজেকশন আইডি (Send Money করার পর)</label><input id="dep-trxid" placeholder="TrxID লিখুন"></div>
+    <button class="btn btn-primary" onclick="submitDeposit()">জমা দিন</button>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন যাচাই করার পর ব্যালেন্স যোগ হবে।</p>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-withdraw" onclick="closeSheetBg(event,'sheet-withdraw')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>উইথড্র করুন</h2>
+    <div class="field"><label>পরিমাণ (৳)</label><input id="wd-amount" type="number" placeholder="যেমন: 200"></div>
+    <div class="field"><label>Wallet Number (বাইন্ডকৃত)</label><input id="wd-number" placeholder="Profile থেকে নাম্বার বাইন্ড করুন" readonly="readonly"></div>
+    <button class="btn btn-primary" onclick="submitWithdraw()">অনুরোধ পাঠান</button>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-refer" onclick="closeSheetBg(event,'sheet-refer')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>বন্ধুদের ইনভাইট করুন</h2>
+    <p style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;">প্রতিটি প্রকৃত রেফারে ৳5 বোনাস পাবেন। একই ফোন থেকে তৈরি অ্যাকাউন্ট রেফার বোনাসের জন্য গণনা হবে না।</p>
+    <div class="field"><input id="refer-link" readonly></div>
+    <button class="btn btn-primary" onclick="copyReferLink()">লিংক কপি করুন</button>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-mysubmissions" onclick="closeSheetBg(event,'sheet-mysubmissions')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>আমার জমা দেওয়া টাস্ক</h2>
+    <div id="mysubmissions-list"></div>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-walletnumber" onclick="closeSheetBg(event,'sheet-walletnumber')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Wallet Number</h2>
+    <p id="wallet-status-text" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">এই নাম্বারেই উইথড্রর টাকা পাঠানো হবে। প্রতিটা নাম্বার শুধু একটা অ্যাকাউন্টে বাইন্ড করা যাবে।</p>
+    <div class="field"><label>bKash/Nagad নাম্বার</label><input id="wallet-number-input" placeholder="01XXXXXXXXX"></div>
+    <button class="btn btn-primary" id="wallet-bind-btn" onclick="bindWalletNumber()">নাম্বার বাইন্ড করুন</button>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-giftcode" onclick="closeSheetBg(event,'sheet-giftcode')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>গিফট কোড রিডিম করুন</h2>
+    <div class="field"><label>কোড লিখুন</label><input id="giftcode-input" placeholder="যেমন: WELCOME50"></div>
+    <button class="btn btn-amber" onclick="redeemGiftCode()">Redeem করুন</button>
+  </div>
+</div>
+
+<div class="overlay" id="gate-overlay" style="align-items:center; display:none;">
+  <div class="sheet" style="border-radius:24px; margin:0 20px; max-height:80vh;">
+    <div style="text-align:center; padding:6px 0 14px;">
+      <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--primary),var(--amber)); display:flex;align-items:center;justify-content:center; font-size:28px; margin:0 auto 12px;">📣</div>
+      <h2>Welcome to OpsEarn!</h2>
+      <p style="font-size:12.5px; color:var(--ink-soft); margin-top:6px;">অ্যাপ ব্যবহার করার আগে নিচের চ্যানেলগুলোতে জয়েন করুন</p>
+    </div>
+    <div id="gate-channel-list" style="margin:10px 0 18px;"></div>
+    <button class="btn btn-primary" onclick="confirmJoinedChannels()">সব জয়েন করেছি, Continue</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   ⚠️ ধাপ ১: এখানে আপনার Firebase কনফিগ বসান
+   Firebase Console থেকে এই কোডটা পাবেন (Project Settings > Your apps)
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCgfLmSk-bnyjDKLWG3d4IuK_A1L1dTMxY",
+  authDomain: "taksearn.firebaseapp.com",
+  databaseURL: "https://taksearn-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "taksearn",
+  storageBucket: "taksearn.firebasestorage.app",
+  messagingSenderId: "318485856632",
+  appId: "1:318485856632:web:4e8d1e67640545539a488d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+
+/* ============ TELEGRAM + DEVICE ID ============ */
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+
+const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
+const myUid = tgUser ? String(tgUser.id) : "demo_" + getOrCreateLocalId();
+const myName = tgUser ? (tgUser.first_name || "User") : "Demo User";
+
+// Device fingerprint: persists in this browser/webview so we can flag duplicate-account referrals.
+// NOTE: this is a best-effort signal, not a guarantee — a user who clears storage or uses a
+// different browser can still bypass it. True airtight detection needs server-side IP + device
+// correlation, which this Realtime Database rule-based approach approximates.
+function getOrCreateLocalId(){
+  let id = localStorage.getItem('te_local_id');
+  if(!id){ id = 'd' + Date.now() + Math.random().toString(36).slice(2); localStorage.setItem('te_local_id', id); }
+  return id;
+}
+function getDeviceId(){
+  let id = localStorage.getItem('te_device_id');
+  if(!id){
+    const raw = navigator.userAgent + screen.width + screen.height + (navigator.language||'') + getOrCreateLocalId();
+    id = 'dev_' + Math.abs(hashCode(raw)).toString(36);
+    localStorage.setItem('te_device_id', id);
+  }
+  return id;
+}
+function hashCode(str){ let h=0; for(let i=0;i<str.length;i++){ h=((h<<5)-h)+str.charCodeAt(i); h|=0;} return h; }
+const myDeviceId = getDeviceId();
+
+/* ============ STATE ============ */
+let TASKS = {}, USERS = {}, SUBMISSIONS = {};
+let REQUIRED_CHANNELS = {}, FUNDING_POOL = 0;
+let myUserData = null;
+let activeFilter = 'All';
+let referrerFromLink = null;
+
+/* ============ INIT: ensure my user record exists ============ */
+function initUser(){
+  const params = new URLSearchParams((tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) ? '?ref='+tg.initDataUnsafe.start_param : window.location.search);
+  referrerFromLink = params.get('ref');
+
+  db.ref('users/'+myUid).once('value').then(snap=>{
+    if(!snap.exists()){
+      const newUser = {
+        name: myName, uid: myUid, deviceId: myDeviceId,
+        balance:0, pending:0, withdrawable:0, bonus:0,
+        tasksDone:0, referrals:0, referredBy: referrerFromLink || null,
+        createdAt: Date.now()
+      };
+      db.ref('users/'+myUid).set(newUser).then(()=>{
+        // register this device -> account link
+        db.ref('devices/'+myDeviceId+'/'+myUid).set(true);
+        // handle referral bonus, blocking same-device fraud
+        if(referrerFromLink && referrerFromLink !== myUid){
+          handleReferral(referrerFromLink);
+        }
+      });
+    } else {
+      db.ref('devices/'+myDeviceId+'/'+myUid).set(true);
+    }
+  });
+}
+
+function handleReferral(referrerUid){
+  db.ref('devices/'+myDeviceId).once('value').then(snap=>{
+    const linkedAccounts = snap.exists() ? Object.keys(snap.val()) : [];
+    db.ref('users/'+referrerUid).once('value').then(refSnap=>{
+      if(!refSnap.exists()) return;
+      const refDeviceId = refSnap.val().deviceId;
+      const sameDevice = (refDeviceId === myDeviceId) || linkedAccounts.includes(referrerUid);
+      if(sameDevice){
+        // fake refer — do not pay bonus, just log it
+        db.ref('fraud_flags/'+myUid).set({reason:'same_device_referral', referrer:referrerUid, deviceId:myDeviceId, at:Date.now()});
+        showToast('রেফার লিংক দিয়ে যোগ হয়েছেন, তবে একই ডিভাইস হওয়ায় বোনাস প্রযোজ্য নয়');
+      } else {
+        db.ref('users/'+referrerUid).transaction(u=>{
+          if(u){ u.balance=(u.balance||0)+5; u.withdrawable=(u.withdrawable||0)+5; u.bonus=(u.bonus||0)+5; u.referrals=(u.referrals||0)+1; }
+          return u;
+        });
+        db.ref('transactions/'+referrerUid).push({type:'referral', amount:5, note:'Referral bonus: '+myName, status:'approved', at:Date.now()});
+      }
+    });
+  });
+}
+
+/* ============ LIVE LISTENERS ============ */
+function attachListeners(){
+  db.ref('users/'+myUid).on('value', snap=>{
+    myUserData = snap.val();
+    renderUser();
+  });
+  db.ref('tasks').on('value', snap=>{ TASKS = snap.val() || {}; renderTasks(); renderHome(); });
+  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderHome(); });
+  db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderMySubmissions(); });
+  db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderGate(); });
+  db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; });
+  db.ref('transactions/'+myUid).on('value', snap=>{ renderTxList(snap.val()||{}); });
+}
+
+/* ============ REQUIRED CHANNELS GATE ============ */
+function renderGate(){
+  const channels = Object.entries(REQUIRED_CHANNELS||{});
+  const overlay = document.getElementById('gate-overlay');
+  if(!channels.length || !myUserData){ overlay.style.display='none'; return; }
+  if(myUserData.joinedRequired){ overlay.style.display='none'; return; }
+  document.getElementById('gate-channel-list').innerHTML = channels.map(([id,c])=>`
+    <div class="channel-row">
+      <div class="cic">📢</div>
+      <div class="cn">${escapeHtml(c.name)}</div>
+      <a href="${c.url}" target="_blank" rel="noopener">Join</a>
+    </div>`).join('');
+  overlay.style.display = 'flex';
+}
+function confirmJoinedChannels(){
+  db.ref('users/'+myUid+'/joinedRequired').set(true);
+  document.getElementById('gate-overlay').style.display = 'none';
+}
+
+/* ============ RENDER: HOME ============ */
+function renderUser(){
+  if(!myUserData) return;
+  renderGate();
+  const b = myUserData;
+  document.getElementById('home-balance').textContent = '৳ '+(b.balance||0).toFixed(2);
+  document.getElementById('home-pending').textContent = '৳'+(b.pending||0);
+  document.getElementById('home-withdrawable').textContent = '৳'+(b.withdrawable||0);
+  document.getElementById('home-refcount').textContent = b.referrals||0;
+  document.getElementById('wallet-balance').textContent = '৳ '+(b.balance||0).toFixed(2);
+  document.getElementById('wallet-earned').textContent = '৳'+((b.balance||0)+(b.withdrawable===undefined?0:0));
+  document.getElementById('wallet-withdrawn').textContent = '৳'+(b.totalWithdrawn||0);
+  document.getElementById('profile-name').textContent = b.name;
+  document.getElementById('profile-uid').textContent = b.uid;
+  document.getElementById('profile-initial').textContent = (b.name||'?').charAt(0).toUpperCase();
+  document.getElementById('profile-tasksdone').textContent = b.tasksDone||0;
+  document.getElementById('profile-referrals').textContent = b.referrals||0;
+  document.getElementById('stat-mytasks').textContent = b.tasksDone||0;
+  const link = (tg ? 'https://t.me/YourBotName/YourAppName?startapp='+b.uid : window.location.href+'?ref='+b.uid);
+  document.getElementById('refer-link').value = link;
+  document.getElementById('profile-wallet-preview').textContent = b.walletNumber ? ('বাইন্ডকৃত: '+b.walletNumber) : 'উইথড্রর জন্য নাম্বার সেট করুন';
+  document.getElementById('wd-number').value = b.walletNumber || '';
+}
+
+/* ============ WALLET NUMBER BINDING ============ */
+function openWalletSheet(){
+  const bound = myUserData && myUserData.walletNumber;
+  document.getElementById('wallet-number-input').value = bound || '';
+  document.getElementById('wallet-number-input').disabled = !!bound;
+  document.getElementById('wallet-bind-btn').style.display = bound ? 'none' : 'block';
+  document.getElementById('wallet-status-text').textContent = bound
+    ? 'এই নাম্বারটি ইতিমধ্যে আপনার অ্যাকাউন্টে বাইন্ড করা আছে। পরিবর্তন করতে চাইলে সাপোর্টে যোগাযোগ করুন।'
+    : 'এই নাম্বারেই উইথড্রর টাকা পাঠানো হবে। প্রতিটা নাম্বার শুধু একটা অ্যাকাউন্টে বাইন্ড করা যাবে, একবার বাইন্ড করার পর নিজে থেকে পাল্টানো যাবে না।';
+  openSheet('sheet-walletnumber');
+}
+
+function bindWalletNumber(){
+  const raw = document.getElementById('wallet-number-input').value.trim();
+  const num = raw.replace(/[^0-9]/g,'');
+  if(num.length < 11){ showToast('সঠিক নাম্বার দিন'); return; }
+  db.ref('wallet_numbers/'+num).transaction(owner=>{
+    if(owner === null) return myUid;      // free — claim it
+    return owner;                          // already taken — leave unchanged
+  }, (error, committed, snap)=>{
+    if(error){ showToast('একটা সমস্যা হয়েছে, আবার চেষ্টা করুন'); return; }
+    const owner = snap.val();
+    if(owner !== myUid){
+      showToast('এই নাম্বারটি ইতিমধ্যে অন্য একাউন্টে ব্যবহার হয়েছে');
+      return;
+    }
+    db.ref('users/'+myUid+'/walletNumber').set(num);
+    closeSheet('sheet-walletnumber');
+    showToast('নাম্বার বাইন্ড হয়েছে');
+  });
+}
+
+/* ============ GIFT CODES ============ */
+function redeemGiftCode(){
+  const code = document.getElementById('giftcode-input').value.trim().toUpperCase();
+  if(!code){ showToast('কোড লিখুন'); return; }
+  db.ref('gift_codes/'+code).once('value').then(snap=>{
+    if(!snap.exists()){ showToast('কোডটি সঠিক নয়'); return; }
+    const gift = snap.val();
+    db.ref('gift_claims/'+code+'/'+myUid).transaction(existing=>{
+      if(existing) return existing;   // already claimed — no change
+      return true;                     // first claim
+    }, (error, committed, claimSnap)=>{
+      if(error){ showToast('সমস্যা হয়েছে, আবার চেষ্টা করুন'); return; }
+      // if this write didn't newly create the claim, it means user already claimed before
+      if(!committed){ showToast('আপনি এই কোডটি আগেই ব্যবহার করেছেন'); return; }
+      if(FUNDING_POOL < Number(gift.amount)){
+        db.ref('gift_claims/'+code+'/'+myUid).remove();
+        showToast('এই মুহূর্তে ফান্ড অপর্যাপ্ত, পরে চেষ্টা করুন');
+        return;
+      }
+      db.ref('users/'+myUid).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(gift.amount); u.withdrawable=(u.withdrawable||0)+Number(gift.amount); } return u; });
+      db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(gift.amount));
+      db.ref('transactions/'+myUid).push({type:'gift', amount:Number(gift.amount), note:'Gift Code: '+code, status:'approved', at:Date.now()});
+      closeSheet('sheet-giftcode');
+      showToast('৳'+gift.amount+' যোগ হয়েছে!');
+    });
+  });
+}
+
+function renderHome(){
+  const taskArr = Object.entries(TASKS).filter(([id,t])=>t.status==='approved');
+  let totalPaid=0, totalDone=0;
+  Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved'){ totalPaid+=Number(s.amount||0); totalDone++; } });
+  document.getElementById('stat-tasksdone').textContent = totalDone;
+  document.getElementById('stat-totalpaid').textContent = '৳'+totalPaid;
+  document.getElementById('stat-totalusers').textContent = Object.keys(USERS||{}).length;
+
+  const recent = taskArr.slice(-3).reverse();
+  document.getElementById('home-recent-tasks').innerHTML = recent.length ? recent.map(([id,t])=>taskCardHtml(id,t)).join('') :
+    '<div class="empty-state"><div class="eic">📭</div>এখনো কোনো টাস্ক নেই</div>';
+}
+
+/* ============ RENDER: TASKS ============ */
+function renderTasks(){
+  const cats = ['All', ...new Set(Object.values(TASKS).map(t=>t.category).filter(Boolean))];
+  document.getElementById('task-filter-row').innerHTML = cats.map(c=>
+    `<button class="chip ${c===activeFilter?'active':''}" onclick="setFilter('${c}')">${c}</button>`).join('');
+
+  const list = Object.entries(TASKS).filter(([id,t])=>t.status==='approved' && (activeFilter==='All' || t.category===activeFilter));
+  document.getElementById('task-list').innerHTML = list.length ? list.map(([id,t])=>taskCardHtml(id,t)).join('') :
+    '<div class="empty-state"><div class="eic">🗂️</div>এই ক্যাটাগরিতে টাস্ক নেই</div>';
+}
+function setFilter(c){ activeFilter=c; renderTasks(); }
+
+function taskCardHtml(id, t){
+  const done = t.completedCount||0, slots = t.slots||0;
+  const pct = slots ? Math.min(100, Math.round(done/slots*100)) : 0;
+  return `<div class="task-card" onclick="openTaskDetail('${id}')">
+    <div class="task-top">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="task-icon">${categoryIcon(t.category)}</div>
+        <div style="font-weight:700; font-size:14px;">${t.category||'Task'}</div>
+      </div>
+      <div class="task-pay"><div class="amt num">৳${t.pay}</div><div class="per">Per Task</div></div>
+    </div>
+    <div class="task-desc">${escapeHtml(t.title)}</div>
+    <div class="task-meta"><span>👥 ${done}/${slots} Done</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+function categoryIcon(c){ return {Facebook:'📘',TikTok:'🎵',YouTube:'▶️',Instagram:'📸'}[c] || '🌐'; }
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+function openTaskDetail(id){
+  const t = TASKS[id];
+  document.getElementById('taskdetail-body').innerHTML = `
+    <div class="sheet-handle"></div>
+    <h2>${t.category} টাস্ক</h2>
+    <p style="font-size:14px; line-height:1.6; margin:10px 0 16px;">${escapeHtml(t.description||t.title)}</p>
+    <div class="stat-grid" style="margin-bottom:16px;">
+      <div class="stat-card"><div class="v num">৳${t.pay}</div><div class="l">পারিশ্রমিক</div></div>
+      <div class="stat-card"><div class="v num">${t.completedCount||0}/${t.slots}</div><div class="l">সম্পন্ন</div></div>
+    </div>
+    <div class="field"><label>UID / প্রুফ লিংক</label><input id="proof-uid" placeholder="আপনার UID বা প্রোফাইল লিংক"></div>
+    <div class="field"><label>স্ক্রিনশট লিংক (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক পেস্ট করুন"></div>
+    <button class="btn btn-primary" onclick="submitProof('${id}')">প্রুফ জমা দিন</button>
+  `;
+  openSheet('sheet-taskdetail');
+}
+
+function submitProof(taskId){
+  const uidVal = document.getElementById('proof-uid').value.trim();
+  const shotVal = document.getElementById('proof-shot').value.trim();
+  if(!uidVal || !shotVal){ showToast('সব ঘর পূরণ করুন'); return; }
+  const t = TASKS[taskId];
+  const subRef = db.ref('submissions').push();
+  subRef.set({
+    taskId, taskTitle:t.title, userId:myUid, userName:myName,
+    amount:t.pay, proofUid:uidVal, proofShot:shotVal,
+    status:'pending', at:Date.now()
+  });
+  closeSheet('sheet-taskdetail');
+  showToast('জমা দেওয়া হয়েছে, অ্যাডমিন রিভিউ করবে');
+}
+
+/* ============ WALLET ============ */
+function renderTxList(txObj){
+  const arr = Object.values(txObj).sort((a,b)=>b.at-a.at);
+  document.getElementById('tx-list').innerHTML = arr.length ? arr.map(tx=>`
+    <div class="tx-row">
+      <div class="tx-ic ${tx.amount<0?'out':''}">${tx.amount<0?'↓':'↑'}</div>
+      <div class="tx-info"><div class="n">${tx.note||tx.type}</div><div class="s">${new Date(tx.at).toLocaleDateString()}</div></div>
+      <div class="tx-amt ${tx.amount<0?'minus':'plus'} num">${tx.amount<0?'':'+'}৳${Math.abs(tx.amount)}</div>
+    </div>`).join('') : '<div class="empty-state"><div class="eic">💳</div>কোনো লেনদেন নেই</div>';
+}
+
+function submitDeposit(){
+  const amount = Number(document.getElementById('dep-amount').value);
+  const method = document.getElementById('dep-method').value;
+  const trxid = document.getElementById('dep-trxid').value.trim();
+  if(!amount || !trxid){ showToast('সব তথ্য পূরণ করুন'); return; }
+  db.ref('deposits').push({userId:myUid, userName:myName, amount, method, trxid, status:'pending', at:Date.now()});
+  closeSheet('sheet-deposit');
+  showToast('ডিপোজিট রিকোয়েস্ট পাঠানো হয়েছে');
+}
+
+function submitWithdraw(){
+  const amount = Number(document.getElementById('wd-amount').value);
+  const number = myUserData ? myUserData.walletNumber : '';
+  if(!number){ showToast('আগে Profile থেকে Wallet Number বাইন্ড করুন'); return; }
+  if(!amount){ showToast('পরিমাণ লিখুন'); return; }
+  if(!myUserData || amount > (myUserData.withdrawable||0)){ showToast('অপর্যাপ্ত ব্যালেন্স'); return; }
+  db.ref('withdraws').push({userId:myUid, userName:myName, amount, number, status:'pending', at:Date.now()});
+  db.ref('users/'+myUid).transaction(u=>{ if(u){ u.withdrawable=(u.withdrawable||0)-amount; u.pending=(u.pending||0)+amount; } return u; });
+  closeSheet('sheet-withdraw');
+  showToast('উইথড্র রিকোয়েস্ট পাঠানো হয়েছে');
+}
+
+function submitNewTask(){
+  const title = document.getElementById('pt-title').value.trim();
+  const desc = document.getElementById('pt-desc').value.trim();
+  const category = document.getElementById('pt-category').value;
+  const pay = Number(document.getElementById('pt-pay').value);
+  const slots = Number(document.getElementById('pt-slots').value);
+  if(!title || !pay || !slots){ showToast('সব তথ্য পূরণ করুন'); return; }
+  db.ref('tasks').push({title, description:desc, category, pay, slots, completedCount:0, status:'pending', postedBy:myUid, at:Date.now()});
+  closeSheet('sheet-posttask');
+  showToast('টাস্ক রিভিউয়ের জন্য পাঠানো হয়েছে');
+}
+
+function renderMySubmissions(){
+  const mine = Object.values(SUBMISSIONS||{}).filter(s=>s.userId===myUid).sort((a,b)=>b.at-a.at);
+  document.getElementById('mysubmissions-list').innerHTML = mine.length ? mine.map(s=>`
+    <div class="tx-row">
+      <div class="tx-info"><div class="n">${escapeHtml(s.taskTitle)}</div><div class="s">৳${s.amount}</div></div>
+      <span class="badge ${s.status}">${s.status}</span>
+    </div>`).join('') : '<div class="empty-state"><div class="eic">📋</div>এখনো কিছু জমা দেননি</div>';
+}
+
+/* ============ NAV / SHEETS ============ */
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById('screen-'+name);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.nav===name));
+}
+function openSheet(id){ document.getElementById(id).classList.add('active'); }
+function closeSheet(id){ document.getElementById(id).classList.remove('active'); }
+function closeSheetBg(e,id){ if(e.target.id===id) closeSheet(id); }
+function openRefer(){ openSheet('sheet-refer'); }
+function copyReferLink(){
+  const inp = document.getElementById('refer-link');
+  inp.select(); document.execCommand('copy');
+  showToast('লিংক কপি হয়েছে');
+}
+function openSupport(){ showToast('সাপোর্টের জন্য অ্যাডমিনকে মেসেজ দিন'); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ============ START ============ */
+initUser();
+attachListeners();
+</script>
+</body>
+</html>
