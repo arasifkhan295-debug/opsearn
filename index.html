@@ -361,6 +361,10 @@ body{
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>ডিপোজিট করুন</h2>
+    <div class="channel-row" id="deposit-number-box" style="align-items:flex-start;">
+      <div class="cic">📲</div>
+      <div class="cn">এই নাম্বারে Send Money করুন:<br><span id="deposit-number-text" style="font-size:15px;">লোড হচ্ছে...</span></div>
+    </div>
     <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"></div>
     <div class="field"><label>পেমেন্ট মেথড</label>
       <select id="dep-method"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
@@ -375,7 +379,7 @@ body{
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>উইথড্র করুন</h2>
-    <div class="field"><label>পরিমাণ (৳)</label><input id="wd-amount" type="number" placeholder="যেমন: 200"></div>
+    <div class="field"><label>পরিমাণ (৳)</label><input id="wd-amount" type="number" placeholder="যেমন: 200"><p id="wd-limit-hint" style="font-size:11px; color:var(--ink-soft); margin-top:6px;"></p></div>
     <div class="field"><label>Wallet Number (বাইন্ডকৃত)</label><input id="wd-number" placeholder="Profile থেকে নাম্বার বাইন্ড করুন" readonly="readonly"></div>
     <button class="btn btn-primary" onclick="submitWithdraw()">অনুরোধ পাঠান</button>
   </div>
@@ -484,6 +488,8 @@ const myDeviceId = getDeviceId();
 /* ============ STATE ============ */
 let TASKS = {}, USERS = {}, SUBMISSIONS = {};
 let REQUIRED_CHANNELS = {}, FUNDING_POOL = 0;
+let SUPPORT_LINK = '', BOT_USERNAME = '', APP_SHORT_NAME = 'app';
+let WITHDRAW_MIN = 0, WITHDRAW_MAX = 999999;
 let myUserData = null;
 let activeFilter = 'All';
 let referrerFromLink = null;
@@ -548,15 +554,27 @@ function attachListeners(){
   db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderMySubmissions(); });
   db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderGate(); });
   db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; });
+  db.ref('settings/depositNumber').on('value', snap=>{
+    document.getElementById('deposit-number-text').textContent = snap.val() || 'এখনো সেট করা হয়নি';
+  });
+  db.ref('settings/supportLink').on('value', snap=>{ SUPPORT_LINK = snap.val() || ''; });
+  db.ref('settings/botUsername').on('value', snap=>{ BOT_USERNAME = snap.val() || ''; });
+  db.ref('settings/appShortName').on('value', snap=>{ APP_SHORT_NAME = snap.val() || 'app'; });
+  db.ref('settings/withdrawMin').on('value', snap=>{ WITHDRAW_MIN = snap.val() || 0; updateWdHint(); });
+  db.ref('settings/withdrawMax').on('value', snap=>{ WITHDRAW_MAX = snap.val() || 999999; updateWdHint(); });
+  db.ref('settings/totalPaidOut').on('value', snap=>{
+    document.getElementById('stat-totalpaid').textContent = '৳'+(snap.val()||0);
+  });
   db.ref('transactions/'+myUid).on('value', snap=>{ renderTxList(snap.val()||{}); });
 }
 
 /* ============ REQUIRED CHANNELS GATE ============ */
+let gateConfirmedThisSession = false; // resets every time the app is opened fresh
 function renderGate(){
   const channels = Object.entries(REQUIRED_CHANNELS||{});
   const overlay = document.getElementById('gate-overlay');
   if(!channels.length || !myUserData){ overlay.style.display='none'; return; }
-  if(myUserData.joinedRequired){ overlay.style.display='none'; return; }
+  if(gateConfirmedThisSession){ overlay.style.display='none'; return; }
   document.getElementById('gate-channel-list').innerHTML = channels.map(([id,c])=>`
     <div class="channel-row">
       <div class="cic">📢</div>
@@ -566,7 +584,7 @@ function renderGate(){
   overlay.style.display = 'flex';
 }
 function confirmJoinedChannels(){
-  db.ref('users/'+myUid+'/joinedRequired').set(true);
+  gateConfirmedThisSession = true;
   document.getElementById('gate-overlay').style.display = 'none';
 }
 
@@ -588,7 +606,7 @@ function renderUser(){
   document.getElementById('profile-tasksdone').textContent = b.tasksDone||0;
   document.getElementById('profile-referrals').textContent = b.referrals||0;
   document.getElementById('stat-mytasks').textContent = b.tasksDone||0;
-  const link = (tg ? 'https://t.me/YourBotName/YourAppName?startapp='+b.uid : window.location.href+'?ref='+b.uid);
+  const link = (tg && BOT_USERNAME) ? ('https://t.me/'+BOT_USERNAME+'/'+APP_SHORT_NAME+'?startapp='+b.uid) : (window.location.href+'?ref='+b.uid);
   document.getElementById('refer-link').value = link;
   document.getElementById('profile-wallet-preview').textContent = b.walletNumber ? ('বাইন্ডকৃত: '+b.walletNumber) : 'উইথড্রর জন্য নাম্বার সেট করুন';
   document.getElementById('wd-number').value = b.walletNumber || '';
@@ -647,6 +665,7 @@ function redeemGiftCode(){
       }
       db.ref('users/'+myUid).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(gift.amount); u.withdrawable=(u.withdrawable||0)+Number(gift.amount); } return u; });
       db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(gift.amount));
+      db.ref('settings/totalPaidOut').transaction(v=>(v||0)+Number(gift.amount));
       db.ref('transactions/'+myUid).push({type:'gift', amount:Number(gift.amount), note:'Gift Code: '+code, status:'approved', at:Date.now()});
       closeSheet('sheet-giftcode');
       showToast('৳'+gift.amount+' যোগ হয়েছে!');
@@ -656,10 +675,9 @@ function redeemGiftCode(){
 
 function renderHome(){
   const taskArr = Object.entries(TASKS).filter(([id,t])=>t.status==='approved');
-  let totalPaid=0, totalDone=0;
-  Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved'){ totalPaid+=Number(s.amount||0); totalDone++; } });
+  let totalDone=0;
+  Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved'){ totalDone++; } });
   document.getElementById('stat-tasksdone').textContent = totalDone;
-  document.getElementById('stat-totalpaid').textContent = '৳'+totalPaid;
   document.getElementById('stat-totalusers').textContent = Object.keys(USERS||{}).length;
 
   const recent = taskArr.slice(-3).reverse();
@@ -751,11 +769,18 @@ function submitDeposit(){
   showToast('ডিপোজিট রিকোয়েস্ট পাঠানো হয়েছে');
 }
 
+function updateWdHint(){
+  const el = document.getElementById('wd-limit-hint');
+  if(el) el.textContent = 'সর্বনিম্ন ৳'+WITHDRAW_MIN+' — সর্বোচ্চ ৳'+WITHDRAW_MAX;
+}
+
 function submitWithdraw(){
   const amount = Number(document.getElementById('wd-amount').value);
   const number = myUserData ? myUserData.walletNumber : '';
   if(!number){ showToast('আগে Profile থেকে Wallet Number বাইন্ড করুন'); return; }
   if(!amount){ showToast('পরিমাণ লিখুন'); return; }
+  if(amount < WITHDRAW_MIN){ showToast('সর্বনিম্ন উইথড্র ৳'+WITHDRAW_MIN); return; }
+  if(amount > WITHDRAW_MAX){ showToast('সর্বোচ্চ উইথড্র ৳'+WITHDRAW_MAX); return; }
   if(!myUserData || amount > (myUserData.withdrawable||0)){ showToast('অপর্যাপ্ত ব্যালেন্স'); return; }
   db.ref('withdraws').push({userId:myUid, userName:myName, amount, number, status:'pending', at:Date.now()});
   db.ref('users/'+myUid).transaction(u=>{ if(u){ u.withdrawable=(u.withdrawable||0)-amount; u.pending=(u.pending||0)+amount; } return u; });
@@ -800,7 +825,10 @@ function copyReferLink(){
   inp.select(); document.execCommand('copy');
   showToast('লিংক কপি হয়েছে');
 }
-function openSupport(){ showToast('সাপোর্টের জন্য অ্যাডমিনকে মেসেজ দিন'); }
+function openSupport(){
+  if(SUPPORT_LINK){ window.open(SUPPORT_LINK, '_blank'); }
+  else { showToast('সাপোর্ট লিংক এখনো সেট করা হয়নি'); }
+}
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
