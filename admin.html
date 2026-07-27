@@ -120,7 +120,7 @@ const db = firebase.database();
 
 /* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
    কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "rakibul19770";
+const ADMIN_PASSWORD = "changeme123";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -172,6 +172,8 @@ function renderAdmin(){
   if(currentAdminTab==='overview'){
     const totalUsers = Object.keys(USERS||{}).length;
     let totalPaid=0; Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved') totalPaid+=Number(s.amount||0); });
+    let withdrawFeeIncome=0; Object.values(WITHDRAWS||{}).forEach(w=>{ if(w.status==='approved') withdrawFeeIncome+=Number(w.fee||0); });
+    const platformRevenue = (APP_SETTINGS.platformRevenue||0) + withdrawFeeIncome;
     const pendingSub = Object.values(SUBMISSIONS||{}).filter(s=>s.status==='pending').length;
     const pendingDep = Object.values(DEPOSITS||{}).filter(d=>d.status==='pending').length;
     const pendingWd = Object.values(WITHDRAWS||{}).filter(w=>w.status==='pending').length;
@@ -182,7 +184,8 @@ function renderAdmin(){
     </div>
     <div class="stat-grid">
       <div class="stat-card"><div class="v num">${totalUsers}</div><div class="l">Total Users</div></div>
-      <div class="stat-card"><div class="v num">৳${totalPaid}</div><div class="l">Total Paid</div></div>
+      <div class="stat-card"><div class="v num">৳${(APP_SETTINGS.totalPaidOut||0)}</div><div class="l">Total Paid Out</div></div>
+      <div class="stat-card"><div class="v num">৳${platformRevenue.toFixed(2)}</div><div class="l">Platform Revenue (কমিশন+ফি)</div></div>
       <div class="stat-card"><div class="v num">${pendingSub}</div><div class="l">Pending Submissions</div></div>
       <div class="stat-card"><div class="v num">${pendingDep+pendingWd}</div><div class="l">Pending Deposit/Withdraw</div></div>
     </div>`;
@@ -228,8 +231,8 @@ function renderAdmin(){
     const rows = Object.entries(WITHDRAWS||{}).sort((a,b)=>b[1].at-a[1].at);
     box.innerHTML = rows.map(([id,w])=>`
       <div class="task-card">
-        <div class="task-top"><div style="font-weight:700;">৳${w.amount}</div><span class="badge ${w.status}">${w.status}</span></div>
-        <div class="task-desc">👤 ${escapeHtml(w.userName)}<br>নাম্বার: <b>${escapeHtml(w.number)}</b></div>
+        <div class="task-top"><div style="font-weight:700;">৳${w.amount} <span style="font-size:11px; color:var(--ink-soft); font-weight:400;">(চার্জ ৳${w.fee||0})</span></div><span class="badge ${w.status}">${w.status}</span></div>
+        <div class="task-desc">👤 ${escapeHtml(w.userName)}<br>মেথড: <b>${escapeHtml(w.method||'—')}</b> · নাম্বার: <b>${escapeHtml(w.number)}</b><br>পাঠাতে হবে: <b>৳${w.netAmount!==undefined?w.netAmount:w.amount}</b></div>
         <button class="btn btn-outline" style="padding:8px; margin-top:6px;" onclick="copyText('${w.number}', this)">📋 নাম্বার কপি করুন</button>
         ${w.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
           <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewWithdraw('${id}','approved')">Paid</button>
@@ -242,7 +245,7 @@ function renderAdmin(){
     box.innerHTML = rows.map(([id,u])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">${escapeHtml(u.name)}</div><div class="num">৳${(u.balance||0).toFixed(2)}</div></div>
-        <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
+        <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletMethod?u.walletMethod+' ':''}${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
         <div style="display:flex; gap:8px; margin-top:10px;">
           <input type="number" placeholder="+/- amount" id="adj-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
           <button class="btn btn-primary" style="padding:9px 14px; width:auto;" onclick="adminAdjustBalance('${id}')">Apply</button>
@@ -281,24 +284,30 @@ function renderAdmin(){
       <div class="task-card">
         <div class="field"><label>নতুন কোড</label><input id="gift-code-input" placeholder="যেমন: WELCOME50" style="text-transform:uppercase;"></div>
         <div class="field"><label>পরিমাণ (৳)</label><input id="gift-amount-input" type="number" placeholder="যেমন: 50"></div>
+        <div class="field"><label>সর্বোচ্চ কতজন ক্লেইম করতে পারবে</label><input id="gift-maxclaims-input" type="number" placeholder="যেমন: 100"></div>
         <button class="btn btn-amber" onclick="adminAddGiftCode()">কোড তৈরি করুন</button>
       </div>
       ${rows.map(([code,g])=>`
         <div class="channel-row">
           <div class="cic">🎁</div>
-          <div class="cn">${code} · ৳${g.amount}</div>
+          <div class="cn">${code} · ৳${g.amount} · ${g.claimedCount||0}/${g.maxClaims||'∞'} claimed</div>
           <button class="btn btn-danger" style="width:auto; padding:7px 14px; font-size:11.5px;" onclick="adminDeleteGiftCode('${code}')">Delete</button>
         </div>`).join('') || '<div class="empty-state">কোনো গিফট কোড নেই</div>'}
     `;
   }
   else if(currentAdminTab==='settings'){
     const s = APP_SETTINGS || {};
+    const dn = s.depositNumbers || {};
     box.innerHTML = `
       <div class="task-card">
-        <h3 style="margin-bottom:10px;">পেমেন্ট নাম্বার</h3>
-        <div class="field"><label>ইউজাররা যে নাম্বারে ডিপোজিট পাঠাবে</label>
-          <input id="set-depositnumber" placeholder="01XXXXXXXXX" value="${s.depositNumber||''}"></div>
-        <button class="btn btn-primary" onclick="saveSetting('depositNumber','set-depositnumber')">সেভ করুন</button>
+        <h3 style="margin-bottom:10px;">পেমেন্ট নাম্বার (মেথড অনুযায়ী)</h3>
+        <div class="field"><label>bKash নাম্বার</label>
+          <input id="set-dep-bkash" placeholder="01XXXXXXXXX" value="${dn.bKash||''}"></div>
+        <div class="field"><label>Nagad নাম্বার</label>
+          <input id="set-dep-nagad" placeholder="01XXXXXXXXX" value="${dn.Nagad||''}"></div>
+        <div class="field"><label>Rocket নাম্বার</label>
+          <input id="set-dep-rocket" placeholder="01XXXXXXXXX" value="${dn.Rocket||''}"></div>
+        <button class="btn btn-primary" onclick="saveDepositNumbers()">সেভ করুন</button>
       </div>
       <div class="task-card">
         <h3 style="margin-bottom:10px;">সাপোর্ট লিংক</h3>
@@ -322,10 +331,45 @@ function renderAdmin(){
           <input id="set-wdmax" type="number" placeholder="যেমন: 5000" value="${s.withdrawMax||''}"></div>
         <button class="btn btn-primary" onclick="saveWithdrawLimits()">সেভ করুন</button>
       </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">রেফারেল সেটিংস</h3>
+        <div class="field"><label>প্রতি রেফারে বোনাস (৳)</label>
+          <input id="set-referbonus" type="number" placeholder="যেমন: 5" value="${s.referralBonus||''}"></div>
+        <div class="field"><label>রেফার করা ইউজারের আয়ের উপর কমিশন (%)</label>
+          <input id="set-refercommission" type="number" placeholder="যেমন: 10" value="${s.referralCommissionPercent||''}"></div>
+        <button class="btn btn-primary" onclick="saveReferralSettings()">সেভ করুন</button>
+      </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">টাস্ক পোস্টিং</h3>
+        <div class="field"><label>সর্বনিম্ন টাস্ক পারিশ্রমিক (৳)</label>
+          <input id="set-mintaskpay" type="number" placeholder="যেমন: 2" value="${s.minTaskPay||''}"></div>
+        <button class="btn btn-primary" onclick="saveSetting('minTaskPay','set-mintaskpay')">সেভ করুন</button>
+      </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">ডেভেলপার ক্রেডিট</h3>
+        <div class="field"><label>প্রোফাইল পেজের নিচে যা দেখাবে</label>
+          <input id="set-devcredit" placeholder="যেমন: Developed by @yourusername" value="${s.developerCredit||''}"></div>
+        <button class="btn btn-primary" onclick="saveSetting('developerCredit','set-devcredit')">সেভ করুন</button>
+      </div>
     `;
   }
 }
 
+function saveReferralSettings(){
+  const bonus = Number(document.getElementById('set-referbonus').value) || 0;
+  const commission = Number(document.getElementById('set-refercommission').value) || 0;
+  db.ref('settings/referralBonus').set(bonus);
+  db.ref('settings/referralCommissionPercent').set(commission);
+  showToast('সেভ হয়েছে');
+}
+
+function saveDepositNumbers(){
+  const bKash = document.getElementById('set-dep-bkash').value.trim();
+  const Nagad = document.getElementById('set-dep-nagad').value.trim();
+  const Rocket = document.getElementById('set-dep-rocket').value.trim();
+  db.ref('settings/depositNumbers').set({bKash, Nagad, Rocket});
+  showToast('সেভ হয়েছে');
+}
 function saveSetting(key, inputId){
   const val = document.getElementById(inputId).value.trim();
   db.ref('settings/'+key).set(val);
@@ -362,13 +406,36 @@ function adminReviewSubmission(id, status){
   }
   db.ref('submissions/'+id+'/status').set(status);
   if(status==='approved'){
-    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(s.amount); u.withdrawable=(u.withdrawable||0)+Number(s.amount); u.tasksDone=(u.tasksDone||0)+1; } return u; });
+    const grossAmount = Number(s.amount);
+    const commission = Math.round(grossAmount * 0.02 * 100) / 100;
+    const netAmount = grossAmount - commission;
+    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+netAmount; u.withdrawable=(u.withdrawable||0)+netAmount; u.tasksDone=(u.tasksDone||0)+1; } return u; });
     db.ref('tasks/'+s.taskId+'/completedCount').transaction(c=>(c||0)+1);
-    db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(s.amount));
-    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+Number(s.amount));
-    db.ref('transactions/'+s.userId).push({type:'task', amount:Number(s.amount), note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-netAmount);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+netAmount);
+    db.ref('settings/platformRevenue').transaction(v=>(v||0)+commission);
+    db.ref('transactions/'+s.userId).push({type:'task', amount:netAmount, note:'Task reward: '+s.taskTitle+' (2% commission: ৳'+commission+')', status:'approved', at:Date.now()});
+    creditReferralCommission(s.userId, netAmount);
   }
   showToast('রিভিউ সম্পন্ন');
+}
+
+function creditReferralCommission(earnerUid, earnedAmount){
+  const percent = APP_SETTINGS.referralCommissionPercent || 0;
+  if(percent <= 0) return;
+  db.ref('users/'+earnerUid).once('value').then(snap=>{
+    const u = snap.val();
+    if(!u || !u.referredBy) return;
+    const commission = Math.round(earnedAmount * (percent/100) * 100) / 100;
+    if(commission <= 0) return;
+    db.ref('users/'+u.referredBy).transaction(ru=>{
+      if(ru){ ru.balance=(ru.balance||0)+commission; ru.withdrawable=(ru.withdrawable||0)+commission; }
+      return ru;
+    });
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-commission);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+commission);
+    db.ref('transactions/'+u.referredBy).push({type:'referral_commission', amount:commission, note:'রেফারেল কমিশন ('+u.name+' এর আয় থেকে)', status:'approved', at:Date.now()});
+  });
 }
 
 function adminReviewDeposit(id, status){
@@ -429,9 +496,10 @@ function adminAddFunding(){
 function adminAddGiftCode(){
   const code = document.getElementById('gift-code-input').value.trim().toUpperCase();
   const amount = Number(document.getElementById('gift-amount-input').value);
+  const maxClaims = Number(document.getElementById('gift-maxclaims-input').value) || 0;
   if(!code || !amount){ showToast('কোড ও পরিমাণ দিন'); return; }
-  db.ref('gift_codes/'+code).set({amount, at:Date.now()});
-  document.getElementById('gift-code-input').value=''; document.getElementById('gift-amount-input').value='';
+  db.ref('gift_codes/'+code).set({amount, maxClaims, claimedCount:0, at:Date.now()});
+  document.getElementById('gift-code-input').value=''; document.getElementById('gift-amount-input').value=''; document.getElementById('gift-maxclaims-input').value='';
   showToast('গিফট কোড তৈরি হয়েছে');
 }
 function adminDeleteGiftCode(code){ db.ref('gift_codes/'+code).remove(); }
