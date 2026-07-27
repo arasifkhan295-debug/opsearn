@@ -356,10 +356,23 @@ body{
     <div class="field"><label>ক্যাটাগরি</label>
       <select id="pt-category"><option>Facebook</option><option>TikTok</option><option>YouTube</option><option>Instagram</option><option>Telegram</option><option>Other</option></select>
     </div>
-    <div class="field"><label>পারিশ্রমিক (৳ প্রতি টাস্ক)</label><input id="pt-pay" type="number" placeholder="যেমন: 5"></div>
-    <div class="field"><label>মোট স্লট সংখ্যা</label><input id="pt-slots" type="number" placeholder="যেমন: 100"></div>
+    <div class="field"><label>টার্গেট লিংক (যেই পেজ/চ্যানেল/পোস্টে যেতে হবে)</label><input id="pt-targetlink" placeholder="https://..."></div>
+    <div class="field"><label>প্রয়োজনীয় প্রুফের ধরন</label>
+      <select id="pt-proofType"><option value="both">স্ক্রিনশট + UID দুটোই</option><option value="uid">শুধু UID/লিংক</option><option value="screenshot">শুধু স্ক্রিনশট</option></select>
+    </div>
+    <div class="field">
+      <label>ডেমো স্ক্রিনশট (ঐচ্ছিক, সর্বোচ্চ ৪টা — ওয়ার্কারদের বোঝানোর জন্য)</label>
+      <input type="file" accept="image/*" multiple id="pt-demofiles" onchange="handleDemoFileSelect(event)">
+      <div id="pt-demo-preview" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;"></div>
+    </div>
+    <div class="field"><label>পারিশ্রমিক (৳ প্রতি ইউজার)</label><input id="pt-pay" type="number" placeholder="যেমন: 5" oninput="updatePostTaskCost()"></div>
+    <div class="field"><label>মোট স্লট সংখ্যা (কতজন করতে পারবে)</label><input id="pt-slots" type="number" placeholder="যেমন: 100" oninput="updatePostTaskCost()"></div>
+    <div class="channel-row" style="flex-direction:column; align-items:flex-start; gap:4px;">
+      <div style="font-size:12px; color:var(--ink-soft);">মোট বাজেট + ২% অ্যাডমিন ফি</div>
+      <div id="pt-total-cost" style="font-size:18px; font-weight:700; color:var(--primary);">৳0.00</div>
+    </div>
     <button class="btn btn-primary" onclick="submitNewTask()">রিভিউয়ের জন্য পাঠান</button>
-    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন অনুমোদনের পর টাস্কটি লিস্টে দেখা যাবে।</p>
+    <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন অনুমোদনের পর টাস্কটি লিস্টে দেখা যাবে। যখন কোনো ওয়ার্কারের কাজ Approve করবেন, তখনই আপনার ব্যালেন্স থেকে টাকা কাটবে।</p>
   </div>
 </div>
 
@@ -778,70 +791,91 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||
 
 function openTaskDetail(id){
   const t = TASKS[id];
+  const proofType = t.requiredProof || 'both';
   document.getElementById('taskdetail-body').innerHTML = `
     <div class="sheet-handle"></div>
     <h2>${t.category} টাস্ক</h2>
     <p style="font-size:14px; line-height:1.6; margin:10px 0 16px;">${escapeHtml(t.description||t.title)}</p>
+    ${t.demoShots && t.demoShots.length ? `
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12.5px; color:var(--ink-soft); font-weight:600; display:block; margin-bottom:6px;">ডেমো স্ক্রিনশট</label>
+        <div style="display:flex; gap:8px; overflow-x:auto;">${t.demoShots.map(s=>`<img src="${s}" style="width:90px; height:90px; object-fit:cover; border-radius:8px;">`).join('')}</div>
+      </div>` : ''}
     <div class="stat-grid" style="margin-bottom:16px;">
       <div class="stat-card"><div class="v num">৳${t.pay}</div><div class="l">পারিশ্রমিক</div></div>
       <div class="stat-card"><div class="v num">${t.completedCount||0}/${t.slots}</div><div class="l">সম্পন্ন</div></div>
     </div>
-    <div class="field"><label>UID / প্রুফ লিংক</label><input id="proof-uid" placeholder="আপনার UID বা প্রোফাইল লিংক"></div>
+    ${t.targetLink ? `<a href="${t.targetLink}" target="_blank" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none; margin-bottom:16px;">🔗 Open Task Link</a>` : ''}
+    ${proofType!=='screenshot' ? `<div class="field"><label>UID / প্রুফ লিংক</label><input id="proof-uid" placeholder="আপনার UID বা প্রোফাইল লিংক"></div>` : ''}
+    ${proofType!=='uid' ? `
     <div class="field">
-      <label>স্ক্রিনশট আপলোড করুন (গ্যালারি থেকে)</label>
-      <input type="file" accept="image/*" id="proof-file" onchange="handleProofFileSelect(event)">
-      <img id="proof-preview" style="display:none; margin-top:8px; max-width:100%; border-radius:10px;">
+      <label>স্ক্রিনশট আপলোড করুন (গ্যালারি থেকে, সর্বোচ্চ ৪টা)</label>
+      <input type="file" accept="image/*" multiple id="proof-file" onchange="handleProofFileSelect(event)">
+      <div id="proof-preview" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;"></div>
       <p id="proof-file-status" style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;"></p>
     </div>
-    <div class="field"><label>অথবা স্ক্রিনশটের লিংক পেস্ট করুন (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক"></div>
+    <div class="field"><label>অথবা স্ক্রিনশটের লিংক পেস্ট করুন (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক"></div>` : ''}
     <button class="btn btn-primary" onclick="submitProof('${id}')">প্রুফ জমা দিন</button>
   `;
-  proofImageData = null;
+  proofImagesData = [];
   openSheet('sheet-taskdetail');
 }
 
-let proofImageData = null;
+let proofImagesData = [];
 function handleProofFileSelect(event){
-  const file = event.target.files[0];
-  if(!file) return;
+  const files = Array.from(event.target.files).slice(0,4);
+  proofImagesData = [];
   document.getElementById('proof-file-status').textContent = 'ছবি প্রসেস হচ্ছে...';
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const img = new Image();
-    img.onload = function(){
-      const maxW = 800;
-      const scale = Math.min(1, maxW / img.width);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      proofImageData = canvas.toDataURL('image/jpeg', 0.6);
-      document.getElementById('proof-preview').src = proofImageData;
-      document.getElementById('proof-preview').style.display = 'block';
-      document.getElementById('proof-file-status').textContent = 'ছবি রেডি ✓';
+  const preview = document.getElementById('proof-preview');
+  preview.innerHTML = '';
+  let processed = 0;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = new Image();
+      img.onload = function(){
+        const maxW = 800;
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+        proofImagesData.push(dataUrl);
+        const thumb = document.createElement('img');
+        thumb.src = dataUrl;
+        thumb.style = 'width:70px; height:70px; object-fit:cover; border-radius:8px;';
+        preview.appendChild(thumb);
+        processed++;
+        if(processed === files.length) document.getElementById('proof-file-status').textContent = files.length+'টা ছবি রেডি ✓';
+      };
+      img.src = e.target.result;
     };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.readAsDataURL(file);
+  });
 }
 
 function submitProof(taskId){
-  const uidVal = document.getElementById('proof-uid').value.trim();
-  const linkVal = document.getElementById('proof-shot').value.trim();
-  const shotVal = proofImageData || linkVal;
-  if(!uidVal || !shotVal){ showToast('UID দিন এবং ছবি আপলোড বা লিংক দিন'); return; }
+  const uidEl = document.getElementById('proof-uid');
+  const linkEl = document.getElementById('proof-shot');
+  const uidVal = uidEl ? uidEl.value.trim() : '';
+  const linkVal = linkEl ? linkEl.value.trim() : '';
   const t = TASKS[taskId];
+  const proofType = t.requiredProof || 'both';
+  const shotVal = proofImagesData.length ? proofImagesData : (linkVal || null);
+  if(proofType!=='screenshot' && !uidVal){ showToast('UID/লিংক দিন'); return; }
+  if(proofType!=='uid' && !shotVal){ showToast('ছবি আপলোড করুন বা লিংক দিন'); return; }
   const subRef = db.ref('submissions').push();
   subRef.set({
     taskId, taskTitle:t.title, userId:myUid, userName:myName,
-    amount:t.pay, proofUid:uidVal, proofShot:shotVal,
+    amount:t.pay, proofUid:uidVal||'', proofShot:shotVal,
     status:'pending', at:Date.now()
   }).then(()=>{
     closeSheet('sheet-taskdetail');
     showToast('জমা দেওয়া হয়েছে, অ্যাডমিন রিভিউ করবে');
   }).catch(()=>{
-    showToast('ছবি অনেক বড়, ছোট একটা ছবি দিয়ে আবার চেষ্টা করুন অথবা লিংক ব্যবহার করুন');
+    showToast('ছবি অনেক বড়, কম সংখ্যক/ছোট ছবি দিয়ে আবার চেষ্টা করুন অথবা লিংক ব্যবহার করুন');
   });
 }
 
@@ -910,15 +944,61 @@ function submitWithdraw(){
   showToast('উইথড্র রিকোয়েস্ট পাঠানো হয়েছে');
 }
 
+let demoShotsData = [];
+function handleDemoFileSelect(event){
+  const files = Array.from(event.target.files).slice(0,4);
+  demoShotsData = [];
+  const preview = document.getElementById('pt-demo-preview');
+  preview.innerHTML = '';
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = new Image();
+      img.onload = function(){
+        const maxW = 500;
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+        demoShotsData.push(dataUrl);
+        const thumb = document.createElement('img');
+        thumb.src = dataUrl;
+        thumb.style = 'width:60px; height:60px; object-fit:cover; border-radius:8px;';
+        preview.appendChild(thumb);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updatePostTaskCost(){
+  const pay = Number(document.getElementById('pt-pay').value) || 0;
+  const slots = Number(document.getElementById('pt-slots').value) || 0;
+  const base = pay * slots;
+  const fee = Math.round(base * 0.02 * 100) / 100;
+  document.getElementById('pt-total-cost').textContent = '৳'+(base+fee).toFixed(2)+' (বেস ৳'+base.toFixed(2)+' + ফি ৳'+fee.toFixed(2)+')';
+}
+
 function submitNewTask(){
   const title = document.getElementById('pt-title').value.trim();
   const desc = document.getElementById('pt-desc').value.trim();
   const category = document.getElementById('pt-category').value;
+  const targetLink = document.getElementById('pt-targetlink').value.trim();
+  const requiredProof = document.getElementById('pt-proofType').value;
   const pay = Number(document.getElementById('pt-pay').value);
   const slots = Number(document.getElementById('pt-slots').value);
   if(!title || !pay || !slots){ showToast('সব তথ্য পূরণ করুন'); return; }
   if(pay < MIN_TASK_PAY){ showToast('সর্বনিম্ন পারিশ্রমিক ৳'+MIN_TASK_PAY); return; }
-  db.ref('tasks').push({title, description:desc, category, pay, slots, completedCount:0, status:'pending', postedBy:myUid, at:Date.now()});
+  db.ref('tasks').push({
+    title, description:desc, category, targetLink, requiredProof,
+    demoShots: demoShotsData.length ? demoShotsData : null,
+    pay, slots, completedCount:0, status:'pending', postedBy:myUid, at:Date.now()
+  });
+  demoShotsData = [];
   closeSheet('sheet-posttask');
   showToast('টাস্ক রিভিউয়ের জন্য পাঠানো হয়েছে');
 }
@@ -944,14 +1024,25 @@ function renderMyPostedSubmissions(){
   document.getElementById('myposted-list').innerHTML = rows.length ? rows.map(([id,s])=>`
     <div class="task-card">
       <div class="task-top"><div style="font-weight:700;">${escapeHtml(s.taskTitle)}</div><span class="badge ${s.status}">${s.status}</span></div>
-      <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}<br>UID: ${escapeHtml(s.proofUid)}</div>
-      ${s.proofShot && s.proofShot.startsWith('data:image') ? `<img src="${s.proofShot}" style="max-width:100%; border-radius:8px; margin:8px 0;">` :
-        (s.proofShot ? `<a href="${s.proofShot}" target="_blank" style="font-size:12.5px; color:var(--primary); font-weight:600;">🔗 প্রুফ লিংক দেখুন</a>` : '')}
+      <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}${s.proofUid ? '<br>UID: '+escapeHtml(s.proofUid) : ''}</div>
+      ${renderProofDisplay(s.proofShot)}
       ${s.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
         <button class="btn btn-primary" style="padding:9px;" onclick="posterReviewSubmission('${id}','approved')">Approve</button>
         <button class="btn btn-danger" style="padding:9px;" onclick="posterReviewSubmission('${id}','rejected')">Reject</button>
       </div>` : ''}
     </div>`).join('') : '<div class="empty-state"><div class="eic">🗂️</div>আপনার পোস্ট করা টাস্কে এখনো কোনো প্রুফ জমা পড়েনি</div>';
+}
+
+function renderProofDisplay(proof){
+  if(!proof) return '';
+  if(Array.isArray(proof)){
+    return '<div style="display:flex; gap:6px; overflow-x:auto; margin:8px 0;">'+
+      proof.map(p=>`<img src="${p}" style="width:80px; height:80px; object-fit:cover; border-radius:8px;">`).join('')+'</div>';
+  }
+  if(typeof proof==='string' && proof.startsWith('data:image')){
+    return `<img src="${proof}" style="max-width:100%; border-radius:8px; margin:8px 0;">`;
+  }
+  return `<a href="${proof}" target="_blank" style="display:inline-block; margin:8px 0; font-size:12.5px; color:var(--primary); font-weight:600;">🔗 প্রুফ লিংক দেখুন</a>`;
 }
 
 function posterReviewSubmission(id, status){
