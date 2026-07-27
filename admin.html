@@ -93,6 +93,7 @@ body{ font-family:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
       <button class="chip" data-atab="channels" onclick="setAdminTab('channels')">Channels</button>
       <button class="chip" data-atab="funding" onclick="setAdminTab('funding')">Funding</button>
       <button class="chip" data-atab="gifts" onclick="setAdminTab('gifts')">Gift Codes</button>
+      <button class="chip" data-atab="settings" onclick="setAdminTab('settings')">Settings</button>
     </div>
     <div id="admin-content"></div>
   </div>
@@ -122,6 +123,7 @@ const db = firebase.database();
 const ADMIN_PASSWORD = "rakibul19770";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
+let APP_SETTINGS = {};
 let currentAdminTab = 'overview';
 let listenersAttached = false;
 
@@ -155,6 +157,7 @@ function attachListeners(){
   db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderAdmin(); });
   db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; renderAdmin(); });
   db.ref('gift_codes').on('value', snap=>{ GIFT_CODES = snap.val() || {}; renderAdmin(); });
+  db.ref('settings').on('value', snap=>{ APP_SETTINGS = snap.val() || {}; renderAdmin(); });
 }
 
 function setAdminTab(tab){
@@ -226,7 +229,8 @@ function renderAdmin(){
     box.innerHTML = rows.map(([id,w])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">৳${w.amount}</div><span class="badge ${w.status}">${w.status}</span></div>
-        <div class="task-desc">👤 ${escapeHtml(w.userName)}<br>নাম্বার: ${escapeHtml(w.number)}</div>
+        <div class="task-desc">👤 ${escapeHtml(w.userName)}<br>নাম্বার: <b>${escapeHtml(w.number)}</b></div>
+        <button class="btn btn-outline" style="padding:8px; margin-top:6px;" onclick="copyText('${w.number}', this)">📋 নাম্বার কপি করুন</button>
         ${w.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
           <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewWithdraw('${id}','approved')">Paid</button>
           <button class="btn btn-danger" style="padding:9px;" onclick="adminReviewWithdraw('${id}','rejected')">Reject</button>
@@ -287,6 +291,64 @@ function renderAdmin(){
         </div>`).join('') || '<div class="empty-state">কোনো গিফট কোড নেই</div>'}
     `;
   }
+  else if(currentAdminTab==='settings'){
+    const s = APP_SETTINGS || {};
+    box.innerHTML = `
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">পেমেন্ট নাম্বার</h3>
+        <div class="field"><label>ইউজাররা যে নাম্বারে ডিপোজিট পাঠাবে</label>
+          <input id="set-depositnumber" placeholder="01XXXXXXXXX" value="${s.depositNumber||''}"></div>
+        <button class="btn btn-primary" onclick="saveSetting('depositNumber','set-depositnumber')">সেভ করুন</button>
+      </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">সাপোর্ট লিংক</h3>
+        <div class="field"><label>সাপোর্ট বাটনে ট্যাপ করলে যেই লিংক খুলবে</label>
+          <input id="set-supportlink" placeholder="https://t.me/yourusername" value="${s.supportLink||''}"></div>
+        <button class="btn btn-primary" onclick="saveSetting('supportLink','set-supportlink')">সেভ করুন</button>
+      </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">রেফার লিংক (বট তথ্য)</h3>
+        <div class="field"><label>বটের ইউজারনেম (@ ছাড়া)</label>
+          <input id="set-botusername" placeholder="OpsEarnBot" value="${s.botUsername||''}"></div>
+        <div class="field"><label>Mini App এর Short Name (BotFather তে /newapp এ দেওয়া নাম)</label>
+          <input id="set-appshortname" placeholder="app" value="${s.appShortName||''}"></div>
+        <button class="btn btn-primary" onclick="saveBotSettings()">সেভ করুন</button>
+      </div>
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">উইথড্র লিমিট</h3>
+        <div class="field"><label>সর্বনিম্ন উইথড্র (৳)</label>
+          <input id="set-wdmin" type="number" placeholder="যেমন: 50" value="${s.withdrawMin||''}"></div>
+        <div class="field"><label>সর্বোচ্চ উইথড্র (৳)</label>
+          <input id="set-wdmax" type="number" placeholder="যেমন: 5000" value="${s.withdrawMax||''}"></div>
+        <button class="btn btn-primary" onclick="saveWithdrawLimits()">সেভ করুন</button>
+      </div>
+    `;
+  }
+}
+
+function saveSetting(key, inputId){
+  const val = document.getElementById(inputId).value.trim();
+  db.ref('settings/'+key).set(val);
+  showToast('সেভ হয়েছে');
+}
+function saveBotSettings(){
+  const uname = document.getElementById('set-botusername').value.trim().replace('@','');
+  const short = document.getElementById('set-appshortname').value.trim();
+  db.ref('settings/botUsername').set(uname);
+  db.ref('settings/appShortName').set(short);
+  showToast('সেভ হয়েছে');
+}
+function saveWithdrawLimits(){
+  const min = Number(document.getElementById('set-wdmin').value)||0;
+  const max = Number(document.getElementById('set-wdmax').value)||999999;
+  db.ref('settings/withdrawMin').set(min);
+  db.ref('settings/withdrawMax').set(max);
+  showToast('সেভ হয়েছে');
+}
+function copyText(text, btnEl){
+  navigator.clipboard.writeText(text).then(()=>{
+    showToast('কপি হয়েছে');
+  }).catch(()=>{ showToast('কপি করতে সমস্যা হয়েছে'); });
 }
 
 function adminSetTaskStatus(id,status){ db.ref('tasks/'+id+'/status').set(status); showToast('আপডেট হয়েছে'); }
@@ -303,6 +365,7 @@ function adminReviewSubmission(id, status){
     db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(s.amount); u.withdrawable=(u.withdrawable||0)+Number(s.amount); u.tasksDone=(u.tasksDone||0)+1; } return u; });
     db.ref('tasks/'+s.taskId+'/completedCount').transaction(c=>(c||0)+1);
     db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(s.amount));
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+Number(s.amount));
     db.ref('transactions/'+s.userId).push({type:'task', amount:Number(s.amount), note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
   }
   showToast('রিভিউ সম্পন্ন');
@@ -339,6 +402,7 @@ function adminAdjustBalance(userId){
   if(val > 0 && FUNDING_POOL < val){ showToast('ফান্ডিং পুলে যথেষ্ট টাকা নেই'); return; }
   db.ref('users/'+userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+val; if(val>0) u.withdrawable=(u.withdrawable||0)+val; } return u; });
   if(val > 0) db.ref('settings/fundingPool').transaction(v=>(v||0)-val);
+  if(val > 0) db.ref('settings/totalPaidOut').transaction(v=>(v||0)+val);
   db.ref('transactions/'+userId).push({type:'adjust', amount:val, note:'Admin adjustment', status:'approved', at:Date.now()});
   showToast('ব্যালেন্স আপডেট হয়েছে');
 }
