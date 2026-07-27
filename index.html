@@ -275,7 +275,7 @@ body{
   <!-- ============ PROFILE ============ -->
   <div class="screen" id="screen-profile">
     <div class="profile-head">
-      <div class="avatar" id="profile-initial">?</div>
+      <div class="avatar" id="profile-initial"><img id="profile-photo-img" style="display:none; width:100%; height:100%; border-radius:50%; object-fit:cover;"><span id="profile-initial-text">?</span></div>
       <div style="font-size:19px; font-weight:700;" id="profile-name">—</div>
       <div class="uid-tag">UID: <span id="profile-uid">—</span></div>
     </div>
@@ -296,12 +296,17 @@ body{
       </div>
       <div class="menu-row" onclick="openRefer()">
         <div class="mic">👥</div>
-        <div class="mt"><div class="m1">Invite Friends</div><div class="m2">প্রতি রেফারে ৳5 আয় করুন</div></div>
+        <div class="mt"><div class="m1">Invite Friends</div><div class="m2" id="refer-bonus-preview">প্রতি রেফারে আয় করুন</div></div>
         <div>›</div>
       </div>
       <div class="menu-row" onclick="openSheet('sheet-mysubmissions')">
         <div class="mic">📋</div>
         <div class="mt"><div class="m1">My Submissions</div><div class="m2">আপনার জমা দেওয়া টাস্ক</div></div>
+        <div>›</div>
+      </div>
+      <div class="menu-row" onclick="openMyPostedReview()">
+        <div class="mic">🗂️</div>
+        <div class="mt"><div class="m1">আমার পোস্ট করা টাস্ক রিভিউ</div><div class="m2">আপনার টাস্কের প্রুফ অ্যাপ্রুভ/রিজেক্ট করুন</div></div>
         <div>›</div>
       </div>
       <div class="menu-row" onclick="openSupport()">
@@ -310,6 +315,7 @@ body{
         <div>›</div>
       </div>
     </div>
+    <p id="profile-dev-credit" style="text-align:center; font-size:11.5px; color:var(--ink-soft); margin-top:18px;"></p>
   </div>
 
 </div>
@@ -348,7 +354,7 @@ body{
     <div class="field"><label>টাস্কের শিরোনাম</label><input id="pt-title" placeholder="যেমন: Facebook পেজ লাইক করুন"></div>
     <div class="field"><label>বিবরণ</label><textarea id="pt-desc" placeholder="ধাপে ধাপে নির্দেশনা লিখুন"></textarea></div>
     <div class="field"><label>ক্যাটাগরি</label>
-      <select id="pt-category"><option>Facebook</option><option>TikTok</option><option>YouTube</option><option>Instagram</option><option>Other</option></select>
+      <select id="pt-category"><option>Facebook</option><option>TikTok</option><option>YouTube</option><option>Instagram</option><option>Telegram</option><option>Other</option></select>
     </div>
     <div class="field"><label>পারিশ্রমিক (৳ প্রতি টাস্ক)</label><input id="pt-pay" type="number" placeholder="যেমন: 5"></div>
     <div class="field"><label>মোট স্লট সংখ্যা</label><input id="pt-slots" type="number" placeholder="যেমন: 100"></div>
@@ -361,14 +367,14 @@ body{
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>ডিপোজিট করুন</h2>
+    <div class="field"><label>পেমেন্ট মেথড</label>
+      <select id="dep-method" onchange="updateDepositNumberDisplay()"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
+    </div>
     <div class="channel-row" id="deposit-number-box" style="align-items:flex-start;">
       <div class="cic">📲</div>
       <div class="cn">এই নাম্বারে Send Money করুন:<br><span id="deposit-number-text" style="font-size:15px;">লোড হচ্ছে...</span></div>
     </div>
     <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"></div>
-    <div class="field"><label>পেমেন্ট মেথড</label>
-      <select id="dep-method"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
-    </div>
     <div class="field"><label>ট্রানজেকশন আইডি (Send Money করার পর)</label><input id="dep-trxid" placeholder="TrxID লিখুন"></div>
     <button class="btn btn-primary" onclick="submitDeposit()">জমা দিন</button>
     <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন যাচাই করার পর ব্যালেন্স যোগ হবে।</p>
@@ -379,7 +385,8 @@ body{
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>উইথড্র করুন</h2>
-    <div class="field"><label>পরিমাণ (৳)</label><input id="wd-amount" type="number" placeholder="যেমন: 200"><p id="wd-limit-hint" style="font-size:11px; color:var(--ink-soft); margin-top:6px;"></p></div>
+    <div class="field"><label>পরিমাণ (৳)</label><input id="wd-amount" type="number" placeholder="যেমন: 200" oninput="updateWdFeePreview()"><p id="wd-limit-hint" style="font-size:11px; color:var(--ink-soft); margin-top:6px;"></p></div>
+    <p id="wd-fee-preview" style="font-size:12.5px; color:var(--ink); margin:-8px 0 14px; font-weight:600;"></p>
     <div class="field"><label>Wallet Number (বাইন্ডকৃত)</label><input id="wd-number" placeholder="Profile থেকে নাম্বার বাইন্ড করুন" readonly="readonly"></div>
     <button class="btn btn-primary" onclick="submitWithdraw()">অনুরোধ পাঠান</button>
   </div>
@@ -389,7 +396,7 @@ body{
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>বন্ধুদের ইনভাইট করুন</h2>
-    <p style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;">প্রতিটি প্রকৃত রেফারে ৳5 বোনাস পাবেন। একই ফোন থেকে তৈরি অ্যাকাউন্ট রেফার বোনাসের জন্য গণনা হবে না।</p>
+    <p id="refer-sheet-desc" style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;"></p>
     <div class="field"><input id="refer-link" readonly></div>
     <button class="btn btn-primary" onclick="copyReferLink()">লিংক কপি করুন</button>
   </div>
@@ -408,7 +415,10 @@ body{
     <div class="sheet-handle"></div>
     <h2>Wallet Number</h2>
     <p id="wallet-status-text" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:14px;">এই নাম্বারেই উইথড্রর টাকা পাঠানো হবে। প্রতিটা নাম্বার শুধু একটা অ্যাকাউন্টে বাইন্ড করা যাবে।</p>
-    <div class="field"><label>bKash/Nagad নাম্বার</label><input id="wallet-number-input" placeholder="01XXXXXXXXX"></div>
+    <div class="field"><label>মেথড</label>
+      <select id="wallet-method-input"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
+    </div>
+    <div class="field"><label>নাম্বার</label><input id="wallet-number-input" placeholder="01XXXXXXXXX"></div>
     <button class="btn btn-primary" id="wallet-bind-btn" onclick="bindWalletNumber()">নাম্বার বাইন্ড করুন</button>
   </div>
 </div>
@@ -419,6 +429,15 @@ body{
     <h2>গিফট কোড রিডিম করুন</h2>
     <div class="field"><label>কোড লিখুন</label><input id="giftcode-input" placeholder="যেমন: WELCOME50"></div>
     <button class="btn btn-amber" onclick="redeemGiftCode()">Redeem করুন</button>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-myposted" onclick="closeSheetBg(event,'sheet-myposted')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>আমার পোস্ট করা টাস্কের প্রুফ</h2>
+    <p style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">অ্যাপ্রুভ করলে টাকা আপনার নিজের ব্যালেন্স থেকে কাটা হবে (প্ল্যাটফর্ম কমিশন বাদে)।</p>
+    <div id="myposted-list"></div>
   </div>
 </div>
 
@@ -489,7 +508,10 @@ const myDeviceId = getDeviceId();
 let TASKS = {}, USERS = {}, SUBMISSIONS = {};
 let REQUIRED_CHANNELS = {}, FUNDING_POOL = 0;
 let SUPPORT_LINK = '', BOT_USERNAME = '', APP_SHORT_NAME = 'app';
+let DEPOSIT_NUMBERS = {};
 let WITHDRAW_MIN = 0, WITHDRAW_MAX = 999999;
+let MIN_TASK_PAY = 0;
+let REFERRAL_COMMISSION_PERCENT = 0;
 let myUserData = null;
 let activeFilter = 'All';
 let referrerFromLink = null;
@@ -533,11 +555,17 @@ function handleReferral(referrerUid){
         db.ref('fraud_flags/'+myUid).set({reason:'same_device_referral', referrer:referrerUid, deviceId:myDeviceId, at:Date.now()});
         showToast('রেফার লিংক দিয়ে যোগ হয়েছেন, তবে একই ডিভাইস হওয়ায় বোনাস প্রযোজ্য নয়');
       } else {
-        db.ref('users/'+referrerUid).transaction(u=>{
-          if(u){ u.balance=(u.balance||0)+5; u.withdrawable=(u.withdrawable||0)+5; u.bonus=(u.bonus||0)+5; u.referrals=(u.referrals||0)+1; }
-          return u;
+        db.ref('settings/referralBonus').once('value').then(bonusSnap=>{
+          const bonus = bonusSnap.val() || 0;
+          if(bonus <= 0) return;
+          db.ref('users/'+referrerUid).transaction(u=>{
+            if(u){ u.balance=(u.balance||0)+bonus; u.withdrawable=(u.withdrawable||0)+bonus; u.bonus=(u.bonus||0)+bonus; u.referrals=(u.referrals||0)+1; }
+            return u;
+          });
+          db.ref('settings/fundingPool').transaction(v=>(v||0)-bonus);
+          db.ref('settings/totalPaidOut').transaction(v=>(v||0)+bonus);
+          db.ref('transactions/'+referrerUid).push({type:'referral', amount:bonus, note:'Referral bonus: '+myName, status:'approved', at:Date.now()});
         });
-        db.ref('transactions/'+referrerUid).push({type:'referral', amount:5, note:'Referral bonus: '+myName, status:'approved', at:Date.now()});
       }
     });
   });
@@ -554,8 +582,9 @@ function attachListeners(){
   db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderMySubmissions(); });
   db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderGate(); });
   db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; });
-  db.ref('settings/depositNumber').on('value', snap=>{
-    document.getElementById('deposit-number-text').textContent = snap.val() || 'এখনো সেট করা হয়নি';
+  db.ref('settings/depositNumbers').on('value', snap=>{
+    DEPOSIT_NUMBERS = snap.val() || {};
+    updateDepositNumberDisplay();
   });
   db.ref('settings/supportLink').on('value', snap=>{ SUPPORT_LINK = snap.val() || ''; });
   db.ref('settings/botUsername').on('value', snap=>{ BOT_USERNAME = snap.val() || ''; });
@@ -565,6 +594,16 @@ function attachListeners(){
   db.ref('settings/totalPaidOut').on('value', snap=>{
     document.getElementById('stat-totalpaid').textContent = '৳'+(snap.val()||0);
   });
+  db.ref('settings/referralBonus').on('value', snap=>{
+    const val = snap.val() || 0;
+    document.getElementById('refer-bonus-preview').textContent = 'প্রতি রেফারে ৳'+val+' আয় করুন';
+    document.getElementById('refer-sheet-desc').textContent = 'প্রতিটি প্রকৃত রেফারে ৳'+val+' বোনাস পাবেন। একই ফোন থেকে তৈরি অ্যাকাউন্ট রেফার বোনাসের জন্য গণনা হবে না।';
+  });
+  db.ref('settings/referralCommissionPercent').on('value', snap=>{ REFERRAL_COMMISSION_PERCENT = snap.val() || 0; });
+  db.ref('settings/developerCredit').on('value', snap=>{
+    document.getElementById('profile-dev-credit').textContent = snap.val() || '';
+  });
+  db.ref('settings/minTaskPay').on('value', snap=>{ MIN_TASK_PAY = snap.val() || 0; });
   db.ref('transactions/'+myUid).on('value', snap=>{ renderTxList(snap.val()||{}); });
 }
 
@@ -602,14 +641,20 @@ function renderUser(){
   document.getElementById('wallet-withdrawn').textContent = '৳'+(b.totalWithdrawn||0);
   document.getElementById('profile-name').textContent = b.name;
   document.getElementById('profile-uid').textContent = b.uid;
-  document.getElementById('profile-initial').textContent = (b.name||'?').charAt(0).toUpperCase();
+  document.getElementById('profile-initial-text').textContent = (b.name||'?').charAt(0).toUpperCase();
+  const photoImg = document.getElementById('profile-photo-img');
+  if(tgUser && tgUser.photo_url){
+    photoImg.src = tgUser.photo_url;
+    photoImg.style.display = 'block';
+    document.getElementById('profile-initial-text').style.display = 'none';
+  }
   document.getElementById('profile-tasksdone').textContent = b.tasksDone||0;
   document.getElementById('profile-referrals').textContent = b.referrals||0;
   document.getElementById('stat-mytasks').textContent = b.tasksDone||0;
   const link = (tg && BOT_USERNAME) ? ('https://t.me/'+BOT_USERNAME+'/'+APP_SHORT_NAME+'?startapp='+b.uid) : (window.location.href+'?ref='+b.uid);
   document.getElementById('refer-link').value = link;
-  document.getElementById('profile-wallet-preview').textContent = b.walletNumber ? ('বাইন্ডকৃত: '+b.walletNumber) : 'উইথড্রর জন্য নাম্বার সেট করুন';
-  document.getElementById('wd-number').value = b.walletNumber || '';
+  document.getElementById('profile-wallet-preview').textContent = b.walletNumber ? (b.walletMethod+': '+b.walletNumber) : 'উইথড্রর জন্য নাম্বার সেট করুন';
+  document.getElementById('wd-number').value = b.walletNumber ? (b.walletMethod+' — '+b.walletNumber) : '';
 }
 
 /* ============ WALLET NUMBER BINDING ============ */
@@ -617,6 +662,8 @@ function openWalletSheet(){
   const bound = myUserData && myUserData.walletNumber;
   document.getElementById('wallet-number-input').value = bound || '';
   document.getElementById('wallet-number-input').disabled = !!bound;
+  document.getElementById('wallet-method-input').value = (myUserData && myUserData.walletMethod) || 'bKash';
+  document.getElementById('wallet-method-input').disabled = !!bound;
   document.getElementById('wallet-bind-btn').style.display = bound ? 'none' : 'block';
   document.getElementById('wallet-status-text').textContent = bound
     ? 'এই নাম্বারটি ইতিমধ্যে আপনার অ্যাকাউন্টে বাইন্ড করা আছে। পরিবর্তন করতে চাইলে সাপোর্টে যোগাযোগ করুন।'
@@ -626,6 +673,7 @@ function openWalletSheet(){
 
 function bindWalletNumber(){
   const raw = document.getElementById('wallet-number-input').value.trim();
+  const method = document.getElementById('wallet-method-input').value;
   const num = raw.replace(/[^0-9]/g,'');
   if(num.length < 11){ showToast('সঠিক নাম্বার দিন'); return; }
   db.ref('wallet_numbers/'+num).transaction(owner=>{
@@ -638,7 +686,7 @@ function bindWalletNumber(){
       showToast('এই নাম্বারটি ইতিমধ্যে অন্য একাউন্টে ব্যবহার হয়েছে');
       return;
     }
-    db.ref('users/'+myUid+'/walletNumber').set(num);
+    db.ref('users/'+myUid).update({walletNumber:num, walletMethod:method});
     closeSheet('sheet-walletnumber');
     showToast('নাম্বার বাইন্ড হয়েছে');
   });
@@ -663,12 +711,24 @@ function redeemGiftCode(){
         showToast('এই মুহূর্তে ফান্ড অপর্যাপ্ত, পরে চেষ্টা করুন');
         return;
       }
-      db.ref('users/'+myUid).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(gift.amount); u.withdrawable=(u.withdrawable||0)+Number(gift.amount); } return u; });
-      db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(gift.amount));
-      db.ref('settings/totalPaidOut').transaction(v=>(v||0)+Number(gift.amount));
-      db.ref('transactions/'+myUid).push({type:'gift', amount:Number(gift.amount), note:'Gift Code: '+code, status:'approved', at:Date.now()});
-      closeSheet('sheet-giftcode');
-      showToast('৳'+gift.amount+' যোগ হয়েছে!');
+      db.ref('gift_codes/'+code+'/claimedCount').transaction(count=>{
+        count = count || 0;
+        if(gift.maxClaims && count >= gift.maxClaims) return; // abort — limit reached
+        return count + 1;
+      }, (err2, committed2)=>{
+        if(err2){ showToast('সমস্যা হয়েছে, আবার চেষ্টা করুন'); return; }
+        if(!committed2){
+          db.ref('gift_claims/'+code+'/'+myUid).remove();
+          showToast('এই কোডের ক্লেইম লিমিট শেষ হয়ে গেছে');
+          return;
+        }
+        db.ref('users/'+myUid).transaction(u=>{ if(u){ u.balance=(u.balance||0)+Number(gift.amount); u.withdrawable=(u.withdrawable||0)+Number(gift.amount); } return u; });
+        db.ref('settings/fundingPool').transaction(v=>(v||0)-Number(gift.amount));
+        db.ref('settings/totalPaidOut').transaction(v=>(v||0)+Number(gift.amount));
+        db.ref('transactions/'+myUid).push({type:'gift', amount:Number(gift.amount), note:'Gift Code: '+code, status:'approved', at:Date.now()});
+        closeSheet('sheet-giftcode');
+        showToast('৳'+gift.amount+' যোগ হয়েছে!');
+      });
     });
   });
 }
@@ -713,7 +773,7 @@ function taskCardHtml(id, t){
     <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
   </div>`;
 }
-function categoryIcon(c){ return {Facebook:'📘',TikTok:'🎵',YouTube:'▶️',Instagram:'📸'}[c] || '🌐'; }
+function categoryIcon(c){ return {Facebook:'📘',TikTok:'🎵',YouTube:'▶️',Instagram:'📸',Telegram:'✈️'}[c] || '🌐'; }
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
 function openTaskDetail(id){
@@ -727,25 +787,62 @@ function openTaskDetail(id){
       <div class="stat-card"><div class="v num">${t.completedCount||0}/${t.slots}</div><div class="l">সম্পন্ন</div></div>
     </div>
     <div class="field"><label>UID / প্রুফ লিংক</label><input id="proof-uid" placeholder="আপনার UID বা প্রোফাইল লিংক"></div>
-    <div class="field"><label>স্ক্রিনশট লিংক (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক পেস্ট করুন"></div>
+    <div class="field">
+      <label>স্ক্রিনশট আপলোড করুন (গ্যালারি থেকে)</label>
+      <input type="file" accept="image/*" id="proof-file" onchange="handleProofFileSelect(event)">
+      <img id="proof-preview" style="display:none; margin-top:8px; max-width:100%; border-radius:10px;">
+      <p id="proof-file-status" style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;"></p>
+    </div>
+    <div class="field"><label>অথবা স্ক্রিনশটের লিংক পেস্ট করুন (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক"></div>
     <button class="btn btn-primary" onclick="submitProof('${id}')">প্রুফ জমা দিন</button>
   `;
+  proofImageData = null;
   openSheet('sheet-taskdetail');
+}
+
+let proofImageData = null;
+function handleProofFileSelect(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  document.getElementById('proof-file-status').textContent = 'ছবি প্রসেস হচ্ছে...';
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const maxW = 800;
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      proofImageData = canvas.toDataURL('image/jpeg', 0.6);
+      document.getElementById('proof-preview').src = proofImageData;
+      document.getElementById('proof-preview').style.display = 'block';
+      document.getElementById('proof-file-status').textContent = 'ছবি রেডি ✓';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function submitProof(taskId){
   const uidVal = document.getElementById('proof-uid').value.trim();
-  const shotVal = document.getElementById('proof-shot').value.trim();
-  if(!uidVal || !shotVal){ showToast('সব ঘর পূরণ করুন'); return; }
+  const linkVal = document.getElementById('proof-shot').value.trim();
+  const shotVal = proofImageData || linkVal;
+  if(!uidVal || !shotVal){ showToast('UID দিন এবং ছবি আপলোড বা লিংক দিন'); return; }
   const t = TASKS[taskId];
   const subRef = db.ref('submissions').push();
   subRef.set({
     taskId, taskTitle:t.title, userId:myUid, userName:myName,
     amount:t.pay, proofUid:uidVal, proofShot:shotVal,
     status:'pending', at:Date.now()
+  }).then(()=>{
+    closeSheet('sheet-taskdetail');
+    showToast('জমা দেওয়া হয়েছে, অ্যাডমিন রিভিউ করবে');
+  }).catch(()=>{
+    showToast('ছবি অনেক বড়, ছোট একটা ছবি দিয়ে আবার চেষ্টা করুন অথবা লিংক ব্যবহার করুন');
   });
-  closeSheet('sheet-taskdetail');
-  showToast('জমা দেওয়া হয়েছে, অ্যাডমিন রিভিউ করবে');
 }
 
 /* ============ WALLET ============ */
@@ -757,6 +854,12 @@ function renderTxList(txObj){
       <div class="tx-info"><div class="n">${tx.note||tx.type}</div><div class="s">${new Date(tx.at).toLocaleDateString()}</div></div>
       <div class="tx-amt ${tx.amount<0?'minus':'plus'} num">${tx.amount<0?'':'+'}৳${Math.abs(tx.amount)}</div>
     </div>`).join('') : '<div class="empty-state"><div class="eic">💳</div>কোনো লেনদেন নেই</div>';
+}
+
+function updateDepositNumberDisplay(){
+  const method = document.getElementById('dep-method').value;
+  const num = DEPOSIT_NUMBERS[method];
+  document.getElementById('deposit-number-text').textContent = num || (method+' নাম্বার এখনো সেট করা হয়নি — অ্যাডমিনের সাথে যোগাযোগ করুন');
 }
 
 function submitDeposit(){
@@ -774,6 +877,22 @@ function updateWdHint(){
   if(el) el.textContent = 'সর্বনিম্ন ৳'+WITHDRAW_MIN+' — সর্বোচ্চ ৳'+WITHDRAW_MAX;
 }
 
+function computeWithdrawFee(amount){
+  if(amount >= 50 && amount <= 109) return 5;
+  if(amount >= 110 && amount <= 1009) return 10;
+  if(amount >= 1010) return 20;
+  return 0;
+}
+
+function updateWdFeePreview(){
+  const amount = Number(document.getElementById('wd-amount').value) || 0;
+  const el = document.getElementById('wd-fee-preview');
+  if(!amount){ el.textContent = ''; return; }
+  const fee = computeWithdrawFee(amount);
+  const net = amount - fee;
+  el.textContent = 'চার্জ: ৳'+fee+' — আপনি হাতে পাবেন: ৳'+net;
+}
+
 function submitWithdraw(){
   const amount = Number(document.getElementById('wd-amount').value);
   const number = myUserData ? myUserData.walletNumber : '';
@@ -782,7 +901,10 @@ function submitWithdraw(){
   if(amount < WITHDRAW_MIN){ showToast('সর্বনিম্ন উইথড্র ৳'+WITHDRAW_MIN); return; }
   if(amount > WITHDRAW_MAX){ showToast('সর্বোচ্চ উইথড্র ৳'+WITHDRAW_MAX); return; }
   if(!myUserData || amount > (myUserData.withdrawable||0)){ showToast('অপর্যাপ্ত ব্যালেন্স'); return; }
-  db.ref('withdraws').push({userId:myUid, userName:myName, amount, number, status:'pending', at:Date.now()});
+  const fee = computeWithdrawFee(amount);
+  const netAmount = amount - fee;
+  const method = myUserData.walletMethod || 'bKash';
+  db.ref('withdraws').push({userId:myUid, userName:myName, amount, fee, netAmount, number, method, status:'pending', at:Date.now()});
   db.ref('users/'+myUid).transaction(u=>{ if(u){ u.withdrawable=(u.withdrawable||0)-amount; u.pending=(u.pending||0)+amount; } return u; });
   closeSheet('sheet-withdraw');
   showToast('উইথড্র রিকোয়েস্ট পাঠানো হয়েছে');
@@ -795,6 +917,7 @@ function submitNewTask(){
   const pay = Number(document.getElementById('pt-pay').value);
   const slots = Number(document.getElementById('pt-slots').value);
   if(!title || !pay || !slots){ showToast('সব তথ্য পূরণ করুন'); return; }
+  if(pay < MIN_TASK_PAY){ showToast('সর্বনিম্ন পারিশ্রমিক ৳'+MIN_TASK_PAY); return; }
   db.ref('tasks').push({title, description:desc, category, pay, slots, completedCount:0, status:'pending', postedBy:myUid, at:Date.now()});
   closeSheet('sheet-posttask');
   showToast('টাস্ক রিভিউয়ের জন্য পাঠানো হয়েছে');
@@ -807,6 +930,71 @@ function renderMySubmissions(){
       <div class="tx-info"><div class="n">${escapeHtml(s.taskTitle)}</div><div class="s">৳${s.amount}</div></div>
       <span class="badge ${s.status}">${s.status}</span>
     </div>`).join('') : '<div class="empty-state"><div class="eic">📋</div>এখনো কিছু জমা দেননি</div>';
+}
+
+/* ============ POSTER SELF-REVIEW (approve/reject submissions on tasks I posted) ============ */
+function openMyPostedReview(){
+  renderMyPostedSubmissions();
+  openSheet('sheet-myposted');
+}
+
+function renderMyPostedSubmissions(){
+  const myTaskIds = Object.entries(TASKS||{}).filter(([id,t])=>t.postedBy===myUid).map(([id])=>id);
+  const rows = Object.entries(SUBMISSIONS||{}).filter(([id,s])=>myTaskIds.includes(s.taskId)).sort((a,b)=>b[1].at-a[1].at);
+  document.getElementById('myposted-list').innerHTML = rows.length ? rows.map(([id,s])=>`
+    <div class="task-card">
+      <div class="task-top"><div style="font-weight:700;">${escapeHtml(s.taskTitle)}</div><span class="badge ${s.status}">${s.status}</span></div>
+      <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}<br>UID: ${escapeHtml(s.proofUid)}</div>
+      ${s.proofShot && s.proofShot.startsWith('data:image') ? `<img src="${s.proofShot}" style="max-width:100%; border-radius:8px; margin:8px 0;">` :
+        (s.proofShot ? `<a href="${s.proofShot}" target="_blank" style="font-size:12.5px; color:var(--primary); font-weight:600;">🔗 প্রুফ লিংক দেখুন</a>` : '')}
+      ${s.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-primary" style="padding:9px;" onclick="posterReviewSubmission('${id}','approved')">Approve</button>
+        <button class="btn btn-danger" style="padding:9px;" onclick="posterReviewSubmission('${id}','rejected')">Reject</button>
+      </div>` : ''}
+    </div>`).join('') : '<div class="empty-state"><div class="eic">🗂️</div>আপনার পোস্ট করা টাস্কে এখনো কোনো প্রুফ জমা পড়েনি</div>';
+}
+
+function posterReviewSubmission(id, status){
+  const s = SUBMISSIONS[id];
+  const grossAmount = Number(s.amount);
+  if(status==='approved'){
+    if(!myUserData || (myUserData.balance||0) < grossAmount){
+      showToast('এই টাস্কের পেমেন্টের জন্য আপনার ব্যালেন্সে যথেষ্ট টাকা নেই — আগে ডিপোজিট করুন');
+      return;
+    }
+    const commission = Math.round(grossAmount * 0.02 * 100) / 100;
+    const netAmount = grossAmount - commission;
+    db.ref('submissions/'+id+'/status').set('approved');
+    db.ref('users/'+myUid).transaction(u=>{ if(u){ u.balance=(u.balance||0)-grossAmount; } return u; });
+    db.ref('transactions/'+myUid).push({type:'task_payment', amount:-grossAmount, note:'পেমেন্ট: '+s.taskTitle, status:'approved', at:Date.now()});
+    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+netAmount; u.withdrawable=(u.withdrawable||0)+netAmount; u.tasksDone=(u.tasksDone||0)+1; } return u; });
+    db.ref('tasks/'+s.taskId+'/completedCount').transaction(c=>(c||0)+1);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+netAmount);
+    db.ref('settings/platformRevenue').transaction(v=>(v||0)+commission);
+    db.ref('transactions/'+s.userId).push({type:'task', amount:netAmount, note:'Task reward: '+s.taskTitle+' (2% commission: ৳'+commission+')', status:'approved', at:Date.now()});
+    creditReferralCommission(s.userId, netAmount);
+  } else {
+    db.ref('submissions/'+id+'/status').set('rejected');
+  }
+  showToast('রিভিউ সম্পন্ন');
+  renderMyPostedSubmissions();
+}
+
+function creditReferralCommission(earnerUid, earnedAmount){
+  if(REFERRAL_COMMISSION_PERCENT <= 0) return;
+  db.ref('users/'+earnerUid).once('value').then(snap=>{
+    const u = snap.val();
+    if(!u || !u.referredBy) return;
+    const commission = Math.round(earnedAmount * (REFERRAL_COMMISSION_PERCENT/100) * 100) / 100;
+    if(commission <= 0) return;
+    db.ref('users/'+u.referredBy).transaction(ru=>{
+      if(ru){ ru.balance=(ru.balance||0)+commission; ru.withdrawable=(ru.withdrawable||0)+commission; }
+      return ru;
+    });
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-commission);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+commission);
+    db.ref('transactions/'+u.referredBy).push({type:'referral_commission', amount:commission, note:'রেফারেল কমিশন ('+u.name+' এর আয় থেকে)', status:'approved', at:Date.now()});
+  });
 }
 
 /* ============ NAV / SHEETS ============ */
