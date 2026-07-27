@@ -120,7 +120,7 @@ const db = firebase.database();
 
 /* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
    কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "rakibul19770";
+const ADMIN_PASSWORD = "changeme123";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -128,6 +128,17 @@ let currentAdminTab = 'overview';
 let listenersAttached = false;
 
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function renderProof(proof){
+  if(!proof) return '';
+  if(Array.isArray(proof)){
+    return '<div style="display:flex; gap:6px; overflow-x:auto; margin-top:8px;">'+
+      proof.map(p=>`<img src="${p}" style="width:80px; height:80px; object-fit:cover; border-radius:8px;">`).join('')+'</div>';
+  }
+  if(typeof proof==='string' && proof.startsWith('data:image')){
+    return `<img src="${proof}" style="max-width:100%; border-radius:8px; margin-top:8px;">`;
+  }
+  return `<a href="${proof}" target="_blank" style="display:inline-block; margin-top:8px; font-size:12.5px; color:var(--primary); font-weight:700;">🔗 প্রুফ লিংক খুলুন</a>`;
+}
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -208,7 +219,8 @@ function renderAdmin(){
     box.innerHTML = rows.map(([id,s])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">${escapeHtml(s.taskTitle)}</div><span class="badge ${s.status}">${s.status}</span></div>
-        <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}<br>UID: ${escapeHtml(s.proofUid)}<br>Proof: ${escapeHtml(s.proofShot)}</div>
+        <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}${s.proofUid ? '<br>UID: '+escapeHtml(s.proofUid) : ''}</div>
+        ${renderProof(s.proofShot)}
         ${s.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
           <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewSubmission('${id}','approved')">Approve</button>
           <button class="btn btn-danger" style="padding:9px;" onclick="adminReviewSubmission('${id}','rejected')">Reject</button>
