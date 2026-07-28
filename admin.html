@@ -120,7 +120,7 @@ const db = firebase.database();
 
 /* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
    কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "19770";
+const ADMIN_PASSWORD = "1977010";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -132,12 +132,25 @@ function renderProof(proof){
   if(!proof) return '';
   if(Array.isArray(proof)){
     return '<div style="display:flex; gap:6px; overflow-x:auto; margin-top:8px;">'+
-      proof.map(p=>`<img src="${p}" style="width:80px; height:80px; object-fit:cover; border-radius:8px;">`).join('')+'</div>';
+      proof.map(p=>`<img src="${p}" onclick="openLightbox('${p}')" style="width:80px; height:80px; object-fit:cover; border-radius:8px; cursor:pointer;">`).join('')+'</div>';
   }
   if(typeof proof==='string' && proof.startsWith('data:image')){
-    return `<img src="${proof}" style="max-width:100%; border-radius:8px; margin-top:8px;">`;
+    return `<img src="${proof}" onclick="openLightbox('${proof}')" style="max-width:100%; border-radius:8px; margin-top:8px; cursor:pointer;">`;
   }
   return `<a href="${proof}" target="_blank" style="display:inline-block; margin-top:8px; font-size:12.5px; color:var(--primary); font-weight:700;">🔗 প্রুফ লিংক খুলুন</a>`;
+}
+function openLightbox(src){
+  let box = document.getElementById('img-lightbox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'img-lightbox';
+    box.style = 'position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:999; display:flex; align-items:center; justify-content:center; padding:20px;';
+    box.onclick = ()=>{ box.style.display='none'; };
+    box.innerHTML = '<img id="img-lightbox-img" style="max-width:100%; max-height:100%; border-radius:8px;">';
+    document.body.appendChild(box);
+  }
+  document.getElementById('img-lightbox-img').src = src;
+  box.style.display = 'flex';
 }
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -219,7 +232,11 @@ function renderAdmin(){
     box.innerHTML = rows.map(([id,s])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">${escapeHtml(s.taskTitle)}</div><span class="badge ${s.status}">${s.status}</span></div>
-        <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}${s.proofUid ? '<br>UID: '+escapeHtml(s.proofUid) : ''}</div>
+        <div class="task-desc">👤 ${escapeHtml(s.userName)} · ৳${s.amount}</div>
+        ${s.proofUid ? `<div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+          <span style="font-size:12.5px; flex:1; word-break:break-all;">UID: ${escapeHtml(s.proofUid)}</span>
+          <button class="btn btn-outline" style="width:auto; padding:6px 12px; font-size:11px;" onclick="copyText('${escapeHtml(s.proofUid).replace(/'/g,"\\'")}')">📋 কপি</button>
+        </div>` : ''}
         ${renderProof(s.proofShot)}
         ${s.status==='pending' ? `<div style="display:flex; gap:8px; margin-top:10px;">
           <button class="btn btn-primary" style="padding:9px;" onclick="adminReviewSubmission('${id}','approved')">Approve</button>
@@ -419,15 +436,12 @@ function adminReviewSubmission(id, status){
   db.ref('submissions/'+id+'/status').set(status);
   if(status==='approved'){
     const grossAmount = Number(s.amount);
-    const commission = Math.round(grossAmount * 0.02 * 100) / 100;
-    const netAmount = grossAmount - commission;
-    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+netAmount; u.withdrawable=(u.withdrawable||0)+netAmount; u.tasksDone=(u.tasksDone||0)+1; } return u; });
+    db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+grossAmount; u.withdrawable=(u.withdrawable||0)+grossAmount; u.tasksDone=(u.tasksDone||0)+1; } return u; });
     db.ref('tasks/'+s.taskId+'/completedCount').transaction(c=>(c||0)+1);
-    db.ref('settings/fundingPool').transaction(v=>(v||0)-netAmount);
-    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+netAmount);
-    db.ref('settings/platformRevenue').transaction(v=>(v||0)+commission);
-    db.ref('transactions/'+s.userId).push({type:'task', amount:netAmount, note:'Task reward: '+s.taskTitle+' (2% commission: ৳'+commission+')', status:'approved', at:Date.now()});
-    creditReferralCommission(s.userId, netAmount);
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-grossAmount);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+grossAmount);
+    db.ref('transactions/'+s.userId).push({type:'task', amount:grossAmount, note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
+    creditReferralCommission(s.userId, grossAmount);
   }
   showToast('রিভিউ সম্পন্ন');
 }
