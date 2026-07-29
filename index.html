@@ -245,7 +245,10 @@ body{
   <!-- ============ TOP BAR ============ -->
   <div class="topbar">
     <div class="brand"><span class="dot"></span> OpsEarn</div>
-    <button class="icon-btn" onclick="openSupport()">🎧</button>
+    <div style="display:flex; gap:8px;">
+      <button class="icon-btn" onclick="openNotices()" style="position:relative;">🔔<span id="notice-badge" style="display:none; position:absolute; top:4px; right:4px; width:9px; height:9px; border-radius:50%; background:var(--red);"></span></button>
+      <button class="icon-btn" onclick="openSupport()">🎧</button>
+    </div>
   </div>
 
   <!-- ============ HOME ============ -->
@@ -350,7 +353,7 @@ body{
         <div>›</div>
       </div>
     </div>
-    <p id="profile-dev-credit" style="text-align:center; font-size:11.5px; color:var(--ink-soft); margin-top:18px;"></p>
+    <div id="profile-dev-credit" style="text-align:center; margin-top:20px;"></div>
   </div>
 
 </div>
@@ -480,12 +483,32 @@ body{
   </div>
 </div>
 
+<div class="overlay" id="sheet-notices" onclick="closeSheetBg(event,'sheet-notices')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>নোটিশ</h2>
+    <div id="notices-list"></div>
+  </div>
+</div>
+
 <div class="overlay" id="sheet-myposted" onclick="closeSheetBg(event,'sheet-myposted')">
   <div class="sheet">
     <div class="sheet-handle"></div>
     <h2>আমার পোস্ট করা টাস্কের প্রুফ</h2>
-    <p style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">অ্যাপ্রুভ করলে টাকা আপনার নিজের ব্যালেন্স থেকে কাটা হবে (প্ল্যাটফর্ম কমিশন বাদে)।</p>
+    <p style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">অ্যাপ্রুভ করলে টাকা টাস্ক ওয়ালেট থেকে কাটা হবে।</p>
     <div id="myposted-list"></div>
+  </div>
+</div>
+
+<div class="overlay" id="sheet-edittask" onclick="closeSheetBg(event,'sheet-edittask')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>টাস্ক এডিট করুন</h2>
+    <div class="field"><label>টাইটেল</label><input id="et-title"></div>
+    <div class="field"><label>বিবরণ</label><textarea id="et-desc"></textarea></div>
+    <div class="field"><label>স্লট সংখ্যা</label><input id="et-slots" type="number"></div>
+    <p id="et-info" style="font-size:12px; color:var(--ink-soft); margin-bottom:14px;"></p>
+    <button class="btn btn-primary" onclick="saveTaskEdit()">সেভ করুন</button>
   </div>
 </div>
 
@@ -561,6 +584,7 @@ let WITHDRAW_MIN = 0, WITHDRAW_MAX = 999999;
 let MIN_TASK_PAY = 0;
 let REFERRAL_COMMISSION_PERCENT = 0;
 let DEV_CREDIT_TEXT = '', DEV_LINK = '';
+let PERSONAL_NOTICES = {}, BROADCAST_NOTICES = {};
 let myUserData = null;
 let activeFilter = 'All';
 let referrerFromLink = null;
@@ -650,6 +674,8 @@ function attachListeners(){
   db.ref('settings/developerLink').on('value', snap=>{ DEV_LINK = snap.val() || ''; renderDevCredit(); });
   db.ref('settings/minTaskPay').on('value', snap=>{ MIN_TASK_PAY = snap.val() || 0; });
   db.ref('transactions/'+myUid).on('value', snap=>{ renderTxList(snap.val()||{}); });
+  db.ref('notifications/'+myUid).on('value', snap=>{ PERSONAL_NOTICES = snap.val() || {}; updateNoticeBadge(); });
+  db.ref('notifications_broadcast').on('value', snap=>{ BROADCAST_NOTICES = snap.val() || {}; updateNoticeBadge(); });
 }
 
 /* ============ REQUIRED CHANNELS GATE ============ */
@@ -673,14 +699,44 @@ function confirmJoinedChannels(){
 }
 
 /* ============ RENDER: HOME ============ */
+function updateNoticeBadge(){
+  const badge = document.getElementById('notice-badge');
+  if(!badge) return;
+  const lastSeen = (myUserData && myUserData.lastSeenNoticeAt) || 0;
+  const hasUnreadPersonal = Object.values(PERSONAL_NOTICES||{}).some(n=>!n.read);
+  const hasNewBroadcast = Object.values(BROADCAST_NOTICES||{}).some(n=>n.at > lastSeen);
+  badge.style.display = (hasUnreadPersonal || hasNewBroadcast) ? 'block' : 'none';
+}
+
+function openNotices(){
+  const personal = Object.entries(PERSONAL_NOTICES||{}).sort((a,b)=>b[1].at-a[1].at);
+  const broadcast = Object.entries(BROADCAST_NOTICES||{}).sort((a,b)=>b[1].at-a[1].at);
+  let html = '';
+  if(personal.length){
+    html += '<h3 style="font-size:13px; margin-bottom:8px;">আপনার জন্য</h3>';
+    html += personal.map(([id,n])=>`<div class="tx-row"><div class="tx-info"><div class="n">${escapeHtml(n.message)}</div><div class="s">${new Date(n.at).toLocaleDateString()}</div></div></div>`).join('');
+  }
+  if(broadcast.length){
+    html += '<h3 style="font-size:13px; margin:14px 0 8px;">সবার জন্য</h3>';
+    html += broadcast.map(([id,n])=>`<div class="tx-row"><div class="tx-info"><div class="n">${escapeHtml(n.message)}</div><div class="s">${new Date(n.at).toLocaleDateString()}</div></div></div>`).join('');
+  }
+  document.getElementById('notices-list').innerHTML = html || '<div class="empty-state"><div class="eic">🔔</div>কোনো নোটিশ নেই</div>';
+  openSheet('sheet-notices');
+  // mark as seen
+  personal.forEach(([id])=>{ db.ref('notifications/'+myUid+'/'+id+'/read').set(true); });
+  db.ref('users/'+myUid+'/lastSeenNoticeAt').set(Date.now());
+  document.getElementById('notice-badge').style.display = 'none';
+}
+
 function renderDevCredit(){
   const el = document.getElementById('profile-dev-credit');
   if(!el) return;
   if(!DEV_CREDIT_TEXT){ el.innerHTML = ''; return; }
+  const badgeStyle = 'display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, var(--primary), var(--amber)); color:#fff; font-size:13px; font-weight:700; padding:9px 18px; border-radius:24px; text-decoration:none; box-shadow:0 4px 14px rgba(13,122,95,0.3);';
   if(DEV_LINK){
-    el.innerHTML = `<a href="${DEV_LINK}" target="_blank" style="color:inherit; text-decoration:underline;">${escapeHtml(DEV_CREDIT_TEXT)}</a>`;
+    el.innerHTML = `<a href="${DEV_LINK}" target="_blank" style="${badgeStyle}">✨ ${escapeHtml(DEV_CREDIT_TEXT)}</a>`;
   } else {
-    el.textContent = DEV_CREDIT_TEXT;
+    el.innerHTML = `<span style="${badgeStyle}">✨ ${escapeHtml(DEV_CREDIT_TEXT)}</span>`;
   }
 }
 
@@ -1076,8 +1132,8 @@ function submitNewTask(){
 function renderMySubmissions(){
   const mine = Object.values(SUBMISSIONS||{}).filter(s=>s.userId===myUid).sort((a,b)=>b.at-a.at);
   document.getElementById('mysubmissions-list').innerHTML = mine.length ? mine.map(s=>`
-    <div class="tx-row">
-      <div class="tx-info"><div class="n">${escapeHtml(s.taskTitle)}</div><div class="s">৳${s.amount}</div></div>
+    <div class="tx-row" style="flex-wrap:wrap;">
+      <div class="tx-info"><div class="n">${escapeHtml(s.taskTitle)}</div><div class="s">৳${s.amount}${s.rejectReason ? ' — কারণ: '+escapeHtml(s.rejectReason) : ''}</div></div>
       <span class="badge ${s.status}">${s.status}</span>
     </div>`).join('') : '<div class="empty-state"><div class="eic">📋</div>এখনো কিছু জমা দেননি</div>';
 }
@@ -1105,6 +1161,7 @@ function renderMyPostedSubmissions(){
       <div class="task-top"><div style="font-weight:700;">${escapeHtml(t.title)}</div><span class="badge ${t.status}">${t.status}</span></div>
       <div class="task-desc">৳${t.pay} প্রতি ইউজার · ${t.completedCount||0}/${t.slots} সম্পন্ন · আরও ${t.slots-(t.completedCount||0)} জন লাগবে</div>
       <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,((t.completedCount||0)/t.slots*100))}%"></div></div>
+      <button class="btn btn-outline" style="margin-top:8px; padding:8px;" onclick="openEditTask('${id}')">✏️ এডিট করুন</button>
     </div>`).join('') : '<div class="empty-state">এখনো কোনো টাস্ক পোস্ট করেননি</div>';
 
   html += `<h3 style="font-size:14px; margin:18px 0 8px;">জমা পড়া প্রুফ</h3>`;
@@ -1156,6 +1213,77 @@ function openLightbox(src){
   box.style.display = 'flex';
 }
 
+let editingTaskId = null;
+function openEditTask(taskId){
+  const t = TASKS[taskId];
+  editingTaskId = taskId;
+  document.getElementById('et-title').value = t.title;
+  document.getElementById('et-desc').value = t.description || '';
+  document.getElementById('et-slots').value = t.slots;
+  document.getElementById('et-info').textContent = 'বর্তমানে ৳'+t.pay+' প্রতি ইউজার, '+(t.completedCount||0)+' জন কাজ সম্পন্ন করেছে। স্লট কমালে শুধু বেস টাকা ফেরত যাবে (ফি ফেরত যায় না)। স্লট বাড়ালে অতিরিক্ত বাজেট + ২% ফি ব্যালেন্স থেকে কাটা হবে।';
+  openSheet('sheet-edittask');
+}
+
+function saveTaskEdit(){
+  const t = TASKS[editingTaskId];
+  const newTitle = document.getElementById('et-title').value.trim();
+  const newDesc = document.getElementById('et-desc').value.trim();
+  const newSlots = Number(document.getElementById('et-slots').value);
+  if(!newTitle || !newSlots){ showToast('সব তথ্য পূরণ করুন'); return; }
+  const completed = t.completedCount||0;
+  if(newSlots < completed){
+    showToast('ইতিমধ্যে '+completed+' জন কাজ করেছে, এর চেয়ে কম স্লট করা যাবে না');
+    return;
+  }
+  const oldSlots = t.slots;
+  if(newSlots === oldSlots){
+    db.ref('tasks/'+editingTaskId).update({title:newTitle, description:newDesc});
+    closeSheet('sheet-edittask');
+    showToast('টাস্ক আপডেট হয়েছে');
+    return;
+  }
+  if(newSlots > oldSlots){
+    const extraSlots = newSlots - oldSlots;
+    const extraCost = extraSlots * t.pay;
+    const extraFee = Math.round(extraCost * 0.02 * 100) / 100;
+    const totalExtra = Math.round((extraCost + extraFee) * 100) / 100;
+    if(!myUserData || (myUserData.balance||0) < totalExtra){
+      showToast('যথেষ্ট ব্যালেন্স নেই — আরও ৳'+totalExtra+' লাগবে');
+      return;
+    }
+    db.ref('users/'+myUid).transaction(u=>{
+      if(u){ u.balance=(u.balance||0)-totalExtra; u.withdrawable=Math.max(0,(u.withdrawable||0)-totalExtra); }
+      return u;
+    }).then(()=>{
+      db.ref('tasks/'+editingTaskId).update({title:newTitle, description:newDesc, slots:newSlots});
+      db.ref('tasks/'+editingTaskId+'/escrowRemaining').transaction(v=>(v||0)+extraCost);
+      db.ref('settings/platformRevenue').transaction(v=>(v||0)+extraFee);
+      db.ref('transactions/'+myUid).push({type:'task_escrow', amount:-totalExtra, note:'টাস্ক স্লট বাড়ানো: '+newTitle, status:'approved', at:Date.now()});
+      closeSheet('sheet-edittask');
+      showToast('টাস্ক আপডেট হয়েছে, ৳'+totalExtra+' যোগ হলো');
+    });
+  } else {
+    const reducedSlots = oldSlots - newSlots;
+    const refundAmount = reducedSlots * t.pay;
+    db.ref('tasks/'+editingTaskId+'/escrowRemaining').once('value').then(snap=>{
+      const escrow = snap.val() || 0;
+      if(escrow < refundAmount){
+        showToast('এসক্রোতে যথেষ্ট টাকা নেই এই পরিমাণ ফেরত দেওয়ার জন্য');
+        return;
+      }
+      db.ref('tasks/'+editingTaskId).update({title:newTitle, description:newDesc, slots:newSlots});
+      db.ref('tasks/'+editingTaskId+'/escrowRemaining').transaction(v=>(v||0)-refundAmount);
+      db.ref('users/'+myUid).transaction(u=>{
+        if(u){ u.balance=(u.balance||0)+refundAmount; u.withdrawable=(u.withdrawable||0)+refundAmount; }
+        return u;
+      });
+      db.ref('transactions/'+myUid).push({type:'task_refund', amount:refundAmount, note:'টাস্ক স্লট কমানো (ফি ফেরতযোগ্য নয়): '+newTitle, status:'approved', at:Date.now()});
+      closeSheet('sheet-edittask');
+      showToast('টাস্ক আপডেট হয়েছে, ৳'+refundAmount+' ফেরত এসেছে');
+    });
+  }
+}
+
 function posterReviewSubmission(id, status){
   const s = SUBMISSIONS[id];
   const t = TASKS[s.taskId];
@@ -1173,7 +1301,11 @@ function posterReviewSubmission(id, status){
     db.ref('transactions/'+s.userId).push({type:'task', amount:grossAmount, note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
     creditReferralCommission(s.userId, grossAmount);
   } else {
+    const reason = prompt('রিজেক্ট করার কারণ লিখুন:') || '';
+    if(reason===null) return;
     db.ref('submissions/'+id+'/status').set('rejected');
+    if(reason) db.ref('submissions/'+id+'/rejectReason').set(reason);
+    db.ref('transactions/'+s.userId).push({type:'task_rejected', amount:0, note:'রিজেক্ট: '+s.taskTitle+(reason?' — কারণ: '+reason:''), status:'rejected', at:Date.now()});
   }
   showToast('রিভিউ সম্পন্ন');
 }
@@ -1227,4 +1359,4 @@ attachListeners();
 setTimeout(hideLoadingScreen, 8000); // safety fallback if connection is slow
 </script>
 </body>
-</html>
+        </html>
