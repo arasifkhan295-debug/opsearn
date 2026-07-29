@@ -94,6 +94,7 @@ body{ font-family:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
       <button class="chip" data-atab="funding" onclick="setAdminTab('funding')">Funding</button>
       <button class="chip" data-atab="gifts" onclick="setAdminTab('gifts')">Gift Codes</button>
       <button class="chip" data-atab="settings" onclick="setAdminTab('settings')">Settings</button>
+      <button class="chip" data-atab="notices" onclick="setAdminTab('notices')">Notices</button>
     </div>
     <div id="admin-content"></div>
   </div>
@@ -124,6 +125,7 @@ const ADMIN_PASSWORD = "112233";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
+let BROADCASTS = {};
 let currentAdminTab = 'overview';
 let listenersAttached = false;
 
@@ -182,6 +184,7 @@ function attachListeners(){
   db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; renderAdmin(); });
   db.ref('gift_codes').on('value', snap=>{ GIFT_CODES = snap.val() || {}; renderAdmin(); });
   db.ref('settings').on('value', snap=>{ APP_SETTINGS = snap.val() || {}; renderAdmin(); });
+  db.ref('notifications_broadcast').on('value', snap=>{ BROADCASTS = snap.val() || {}; renderAdmin(); });
 }
 
 function setAdminTab(tab){
@@ -275,8 +278,16 @@ function renderAdmin(){
       </div>`).join('') || '<div class="empty-state">কোনো উইথড্র নেই</div>';
   }
   else if(currentAdminTab==='users'){
-    const rows = Object.entries(USERS||{}).sort((a,b)=>b[1].createdAt-a[1].createdAt);
-    box.innerHTML = rows.map(([id,u])=>`
+    const query = (document.getElementById('user-search-input') ? document.getElementById('user-search-input').value : '').trim().toLowerCase();
+    let rows = Object.entries(USERS||{}).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+    if(query){
+      rows = rows.filter(([id,u])=>
+        (u.name||'').toLowerCase().includes(query) || (u.uid||'').toLowerCase().includes(query)
+      );
+    }
+    box.innerHTML = `
+      <div class="field"><input id="user-search-input" placeholder="🔍 নাম বা UID দিয়ে সার্চ করুন" value="${escapeHtml(query)}" oninput="renderAdmin()"></div>
+    ` + rows.map(([id,u])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">${escapeHtml(u.name)}</div><div class="num">৳${(u.balance||0).toFixed(2)}</div></div>
         <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletMethod?u.walletMethod+' ':''}${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
@@ -284,7 +295,12 @@ function renderAdmin(){
           <input type="number" placeholder="+/- amount" id="adj-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
           <button class="btn btn-primary" style="padding:9px 14px; width:auto;" onclick="adminAdjustBalance('${id}')">Apply</button>
         </div>
-      </div>`).join('') || '<div class="empty-state">কোনো ইউজার নেই</div>';
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <input placeholder="পার্সোনাল নোটিশ লিখুন" id="notice-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:12.5px;">
+          <button class="btn btn-outline" style="padding:9px 14px; width:auto; font-size:12px;" onclick="sendPersonalNotice('${id}')">পাঠান</button>
+        </div>
+      </div>`).join('') || '<div class="empty-state">কোনো ইউজার পাওয়া যায়নি</div>';
+    if(query) document.getElementById('user-search-input').focus();
   }
   else if(currentAdminTab==='channels'){
     const rows = Object.entries(REQUIRED_CHANNELS||{});
@@ -389,6 +405,37 @@ function renderAdmin(){
       </div>
     `;
   }
+  else if(currentAdminTab==='notices'){
+    const rows = Object.entries(BROADCASTS||{}).sort((a,b)=>b[1].at-a[1].at);
+    box.innerHTML = `
+      <div class="task-card">
+        <h3 style="margin-bottom:10px;">সব ইউজারকে নোটিশ পাঠান</h3>
+        <div class="field"><textarea id="broadcast-msg" placeholder="যেমন: আজ রাত ৯টায় বিশেষ অফার!"></textarea></div>
+        <button class="btn btn-amber" onclick="sendBroadcastNotice()">সবাইকে পাঠান</button>
+      </div>
+      <p style="font-size:12px; color:var(--ink-soft); margin:14px 0 8px;">নির্দিষ্ট একজন ইউজারকে নোটিশ পাঠাতে Users ট্যাবে যান, প্রতিটা ইউজার কার্ডে নোটিশ পাঠানোর ঘর আছে।</p>
+      <h3 style="font-size:14px; margin:14px 0 8px;">সাম্প্রতিক ব্রডকাস্ট</h3>
+      ${rows.map(([id,n])=>`
+        <div class="task-card"><div class="task-desc">${escapeHtml(n.message)}</div></div>`).join('') || '<div class="empty-state">এখনো কোনো ব্রডকাস্ট পাঠানো হয়নি</div>'}
+    `;
+  }
+}
+
+function sendPersonalNotice(userId){
+  const el = document.getElementById('notice-'+userId);
+  const msg = el.value.trim();
+  if(!msg) return;
+  db.ref('notifications/'+userId).push({message:msg, at:Date.now(), read:false});
+  el.value = '';
+  showToast('নোটিশ পাঠানো হয়েছে');
+}
+
+function sendBroadcastNotice(){
+  const msg = document.getElementById('broadcast-msg').value.trim();
+  if(!msg) return;
+  db.ref('notifications_broadcast').push({message:msg, at:Date.now()});
+  document.getElementById('broadcast-msg').value = '';
+  showToast('সবাইকে পাঠানো হয়েছে');
 }
 
 function saveDevCredit(){
@@ -447,7 +494,13 @@ function adminReviewSubmission(id, status){
     showToast('ফান্ডিং পুলে যথেষ্ট টাকা নেই — আগে Funding ট্যাব থেকে ফান্ড যোগ করুন');
     return;
   }
+  let reason = '';
+  if(status==='rejected'){
+    reason = prompt('রিজেক্ট করার কারণ লিখুন:') || '';
+    if(reason===null) return;
+  }
   db.ref('submissions/'+id+'/status').set(status);
+  if(reason) db.ref('submissions/'+id+'/rejectReason').set(reason);
   if(status==='approved'){
     const grossAmount = Number(s.amount);
     db.ref('users/'+s.userId).transaction(u=>{ if(u){ u.balance=(u.balance||0)+grossAmount; u.withdrawable=(u.withdrawable||0)+grossAmount; u.tasksDone=(u.tasksDone||0)+1; } return u; });
@@ -456,6 +509,8 @@ function adminReviewSubmission(id, status){
     db.ref('settings/totalPaidOut').transaction(v=>(v||0)+grossAmount);
     db.ref('transactions/'+s.userId).push({type:'task', amount:grossAmount, note:'Task reward: '+s.taskTitle, status:'approved', at:Date.now()});
     creditReferralCommission(s.userId, grossAmount);
+  } else {
+    db.ref('transactions/'+s.userId).push({type:'task_rejected', amount:0, note:'রিজেক্ট: '+s.taskTitle+(reason?' — কারণ: '+reason:''), status:'rejected', at:Date.now()});
   }
   showToast('রিভিউ সম্পন্ন');
 }
@@ -490,7 +545,13 @@ function adminReviewDeposit(id, status){
 
 function adminReviewWithdraw(id, status){
   const w = WITHDRAWS[id];
+  let reason = '';
+  if(status==='rejected'){
+    reason = prompt('উত্তোলন রিজেক্ট করার কারণ লিখুন:') || '';
+    if(reason===null) return;
+  }
   db.ref('withdraws/'+id+'/status').set(status);
+  if(reason) db.ref('withdraws/'+id+'/rejectReason').set(reason);
   db.ref('users/'+w.userId).transaction(u=>{
     if(u){
       u.pending = Math.max(0,(u.pending||0)-Number(w.amount));
@@ -499,7 +560,7 @@ function adminReviewWithdraw(id, status){
     }
     return u;
   });
-  db.ref('transactions/'+w.userId).push({type:'withdraw', amount:-Number(w.amount), note: status==='approved'?'Withdraw paid':'Withdraw rejected', status, at:Date.now()});
+  db.ref('transactions/'+w.userId).push({type:'withdraw', amount:-Number(w.amount), note: status==='approved'?'Withdraw paid':('Withdraw rejected'+(reason?' — কারণ: '+reason:'')), status, at:Date.now()});
   if(status==='approved') payPendingReferralBonus(w.userId);
   showToast('রিভিউ সম্পন্ন');
 }
