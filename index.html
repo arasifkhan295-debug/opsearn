@@ -560,6 +560,7 @@ let DEPOSIT_NUMBERS = {};
 let WITHDRAW_MIN = 0, WITHDRAW_MAX = 999999;
 let MIN_TASK_PAY = 0;
 let REFERRAL_COMMISSION_PERCENT = 0;
+let DEV_CREDIT_TEXT = '', DEV_LINK = '';
 let myUserData = null;
 let activeFilter = 'All';
 let referrerFromLink = null;
@@ -599,20 +600,17 @@ function handleReferral(referrerUid){
       const refDeviceId = refSnap.val().deviceId;
       const sameDevice = (refDeviceId === myDeviceId) || linkedAccounts.includes(referrerUid);
       if(sameDevice){
-        // fake refer — do not pay bonus, just log it
+        // fake refer — do not pay bonus, log it visibly as failed
         db.ref('fraud_flags/'+myUid).set({reason:'same_device_referral', referrer:referrerUid, deviceId:myDeviceId, at:Date.now()});
+        db.ref('transactions/'+referrerUid).push({type:'referral_failed', amount:0, note:'রেফার ব্যর্থ (একই ডিভাইস): '+myName, status:'rejected', at:Date.now()});
         showToast('রেফার লিংক দিয়ে যোগ হয়েছেন, তবে একই ডিভাইস হওয়ায় বোনাস প্রযোজ্য নয়');
       } else {
         db.ref('settings/referralBonus').once('value').then(bonusSnap=>{
           const bonus = bonusSnap.val() || 0;
-          if(bonus <= 0) return;
-          db.ref('users/'+referrerUid).transaction(u=>{
-            if(u){ u.balance=(u.balance||0)+bonus; u.withdrawable=(u.withdrawable||0)+bonus; u.bonus=(u.bonus||0)+bonus; u.referrals=(u.referrals||0)+1; }
-            return u;
-          });
-          db.ref('settings/fundingPool').transaction(v=>(v||0)-bonus);
-          db.ref('settings/totalPaidOut').transaction(v=>(v||0)+bonus);
-          db.ref('transactions/'+referrerUid).push({type:'referral', amount:bonus, note:'Referral bonus: '+myName, status:'approved', at:Date.now()});
+          // bonus stays pending until this referred user completes their first withdrawal
+          db.ref('pending_referral_bonus/'+myUid).set({referrerUid, bonus, referredName:myName, paid:false, at:Date.now()});
+          db.ref('users/'+referrerUid).transaction(u=>{ if(u){ u.referrals=(u.referrals||0)+1; } return u; });
+          db.ref('transactions/'+referrerUid).push({type:'referral_pending', amount:0, note:'রেফার হয়েছে: '+myName+' (উত্তোলন করলে ৳'+bonus+' বোনাস)', status:'pending', at:Date.now()});
         });
       }
     });
@@ -635,8 +633,8 @@ function attachListeners(){
     updateDepositNumberDisplay();
   });
   db.ref('settings/supportLink').on('value', snap=>{ SUPPORT_LINK = snap.val() || ''; });
-  db.ref('settings/botUsername').on('value', snap=>{ BOT_USERNAME = snap.val() || ''; });
-  db.ref('settings/appShortName').on('value', snap=>{ APP_SHORT_NAME = snap.val() || 'app'; });
+  db.ref('settings/botUsername').on('value', snap=>{ BOT_USERNAME = snap.val() || ''; updateReferLink(); });
+  db.ref('settings/appShortName').on('value', snap=>{ APP_SHORT_NAME = snap.val() || 'app'; updateReferLink(); });
   db.ref('settings/withdrawMin').on('value', snap=>{ WITHDRAW_MIN = snap.val() || 0; updateWdHint(); });
   db.ref('settings/withdrawMax').on('value', snap=>{ WITHDRAW_MAX = snap.val() || 999999; updateWdHint(); });
   db.ref('settings/totalPaidOut').on('value', snap=>{
@@ -648,9 +646,8 @@ function attachListeners(){
     document.getElementById('refer-sheet-desc').textContent = 'প্রতিটি প্রকৃত রেফারে ৳'+val+' বোনাস পাবেন। একই ফোন থেকে তৈরি অ্যাকাউন্ট রেফার বোনাসের জন্য গণনা হবে না।';
   });
   db.ref('settings/referralCommissionPercent').on('value', snap=>{ REFERRAL_COMMISSION_PERCENT = snap.val() || 0; });
-  db.ref('settings/developerCredit').on('value', snap=>{
-    document.getElementById('profile-dev-credit').textContent = snap.val() || '';
-  });
+  db.ref('settings/developerCreditText').on('value', snap=>{ DEV_CREDIT_TEXT = snap.val() || ''; renderDevCredit(); });
+  db.ref('settings/developerLink').on('value', snap=>{ DEV_LINK = snap.val() || ''; renderDevCredit(); });
   db.ref('settings/minTaskPay').on('value', snap=>{ MIN_TASK_PAY = snap.val() || 0; });
   db.ref('transactions/'+myUid).on('value', snap=>{ renderTxList(snap.val()||{}); });
 }
@@ -676,6 +673,24 @@ function confirmJoinedChannels(){
 }
 
 /* ============ RENDER: HOME ============ */
+function renderDevCredit(){
+  const el = document.getElementById('profile-dev-credit');
+  if(!el) return;
+  if(!DEV_CREDIT_TEXT){ el.innerHTML = ''; return; }
+  if(DEV_LINK){
+    el.innerHTML = `<a href="${DEV_LINK}" target="_blank" style="color:inherit; text-decoration:underline;">${escapeHtml(DEV_CREDIT_TEXT)}</a>`;
+  } else {
+    el.textContent = DEV_CREDIT_TEXT;
+  }
+}
+
+function updateReferLink(){
+  const el = document.getElementById('refer-link');
+  if(!el || !myUserData) return;
+  const b = myUserData;
+  el.value = (tg && BOT_USERNAME) ? ('https://t.me/'+BOT_USERNAME+'/'+APP_SHORT_NAME+'?startapp='+b.uid) : (window.location.origin+window.location.pathname+'?ref='+b.uid);
+}
+
 function hideLoadingScreen(){
   const el = document.getElementById('loading-screen');
   if(el) el.classList.add('hide');
@@ -705,8 +720,7 @@ function renderUser(){
   document.getElementById('profile-tasksdone').textContent = b.tasksDone||0;
   document.getElementById('profile-referrals').textContent = b.referrals||0;
   document.getElementById('stat-mytasks').textContent = b.tasksDone||0;
-  const link = (tg && BOT_USERNAME) ? ('https://t.me/'+BOT_USERNAME+'/'+APP_SHORT_NAME+'?startapp='+b.uid) : (window.location.href+'?ref='+b.uid);
-  document.getElementById('refer-link').value = link;
+  updateReferLink();
   document.getElementById('profile-wallet-preview').textContent = b.walletNumber ? ((b.walletMethod||'bKash')+': '+b.walletNumber) : 'উইথড্রর জন্য নাম্বার সেট করুন';
   document.getElementById('wd-number').value = b.walletNumber ? ((b.walletMethod||'bKash')+' — '+b.walletNumber) : '';
 }
@@ -1213,4 +1227,4 @@ attachListeners();
 setTimeout(hideLoadingScreen, 8000); // safety fallback if connection is slow
 </script>
 </body>
-  </html>
+</html>
