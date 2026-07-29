@@ -120,7 +120,7 @@ const db = firebase.database();
 
 /* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
    কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "1977010";
+const ADMIN_PASSWORD = "changeme123";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -198,6 +198,7 @@ function renderAdmin(){
     let totalPaid=0; Object.values(SUBMISSIONS||{}).forEach(s=>{ if(s.status==='approved') totalPaid+=Number(s.amount||0); });
     let withdrawFeeIncome=0; Object.values(WITHDRAWS||{}).forEach(w=>{ if(w.status==='approved') withdrawFeeIncome+=Number(w.fee||0); });
     const platformRevenue = (APP_SETTINGS.platformRevenue||0) + withdrawFeeIncome;
+    let totalDeposits=0; Object.values(DEPOSITS||{}).forEach(d=>{ if(d.status==='approved') totalDeposits+=Number(d.amount||0); });
     const pendingSub = Object.values(SUBMISSIONS||{}).filter(s=>s.status==='pending').length;
     const pendingDep = Object.values(DEPOSITS||{}).filter(d=>d.status==='pending').length;
     const pendingWd = Object.values(WITHDRAWS||{}).filter(w=>w.status==='pending').length;
@@ -205,6 +206,10 @@ function renderAdmin(){
     <div class="balance-card">
       <div class="label">Funding Pool Balance</div>
       <div class="amount num">৳ ${FUNDING_POOL.toFixed(2)}</div>
+    </div>
+    <div class="balance-card" style="background:linear-gradient(135deg, var(--amber) 0%, #C97B0C 100%);">
+      <div class="label">Total Deposits (মোট ডিপোজিট)</div>
+      <div class="amount num">৳ ${totalDeposits.toFixed(2)}</div>
     </div>
     <div class="stat-grid">
       <div class="stat-card"><div class="v num">${totalUsers}</div><div class="l">Total Users</div></div>
@@ -376,14 +381,23 @@ function renderAdmin(){
       </div>
       <div class="task-card">
         <h3 style="margin-bottom:10px;">ডেভেলপার ক্রেডিট</h3>
-        <div class="field"><label>প্রোফাইল পেজের নিচে যা দেখাবে</label>
-          <input id="set-devcredit" placeholder="যেমন: Developed by @yourusername" value="${s.developerCredit||''}"></div>
-        <button class="btn btn-primary" onclick="saveSetting('developerCredit','set-devcredit')">সেভ করুন</button>
+        <div class="field"><label>প্রোফাইল পেজের নিচে যা টেক্সট দেখাবে (ইউজারনেম না দিয়ে সাধারণ টেক্সট দিন)</label>
+          <input id="set-devcredittext" placeholder="যেমন: Developed By" value="${s.developerCreditText||''}"></div>
+        <div class="field"><label>ট্যাপ করলে যেই লিংকে যাবে</label>
+          <input id="set-devlink" placeholder="https://t.me/yourusername" value="${s.developerLink||''}"></div>
+        <button class="btn btn-primary" onclick="saveDevCredit()">সেভ করুন</button>
       </div>
     `;
   }
 }
 
+function saveDevCredit(){
+  const text = document.getElementById('set-devcredittext').value.trim();
+  const link = document.getElementById('set-devlink').value.trim();
+  db.ref('settings/developerCreditText').set(text);
+  db.ref('settings/developerLink').set(link);
+  showToast('সেভ হয়েছে');
+}
 function saveReferralSettings(){
   const bonus = Number(document.getElementById('set-referbonus').value) || 0;
   const commission = Number(document.getElementById('set-refercommission').value) || 0;
@@ -486,7 +500,23 @@ function adminReviewWithdraw(id, status){
     return u;
   });
   db.ref('transactions/'+w.userId).push({type:'withdraw', amount:-Number(w.amount), note: status==='approved'?'Withdraw paid':'Withdraw rejected', status, at:Date.now()});
+  if(status==='approved') payPendingReferralBonus(w.userId);
   showToast('রিভিউ সম্পন্ন');
+}
+
+function payPendingReferralBonus(userId){
+  db.ref('pending_referral_bonus/'+userId).once('value').then(snap=>{
+    const pr = snap.val();
+    if(!pr || pr.paid) return;
+    db.ref('users/'+pr.referrerUid).transaction(u=>{
+      if(u){ u.balance=(u.balance||0)+pr.bonus; u.withdrawable=(u.withdrawable||0)+pr.bonus; u.bonus=(u.bonus||0)+pr.bonus; }
+      return u;
+    });
+    db.ref('settings/fundingPool').transaction(v=>(v||0)-pr.bonus);
+    db.ref('settings/totalPaidOut').transaction(v=>(v||0)+pr.bonus);
+    db.ref('transactions/'+pr.referrerUid).push({type:'referral', amount:pr.bonus, note:'রেফারেল বোনাস: '+pr.referredName+' (উত্তোলন সম্পন্ন)', status:'approved', at:Date.now()});
+    db.ref('pending_referral_bonus/'+userId+'/paid').set(true);
+  });
 }
 
 function adminAdjustBalance(userId){
