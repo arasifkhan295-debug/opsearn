@@ -95,6 +95,7 @@ body{ font-family:'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
       <button class="chip" data-atab="gifts" onclick="setAdminTab('gifts')">Gift Codes</button>
       <button class="chip" data-atab="settings" onclick="setAdminTab('settings')">Settings</button>
       <button class="chip" data-atab="notices" onclick="setAdminTab('notices')">Notices</button>
+      <button class="chip" data-atab="referrals" onclick="setAdminTab('referrals')">Referrals</button>
     </div>
     <div id="admin-content"></div>
   </div>
@@ -121,7 +122,7 @@ const db = firebase.database();
 
 /* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
    কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "112233";
+const ADMIN_PASSWORD = "1234567";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -176,7 +177,7 @@ function adminLogout(){
 
 function attachListeners(){
   db.ref('tasks').on('value', snap=>{ TASKS = snap.val() || {}; renderAdmin(); });
-  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderAdmin(); });
+  db.ref('users').on('value', snap=>{ USEchangemRSangemeRS = snap.val() || {}; renderAdmin(); });
   db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderAdmin(); });
   db.ref('deposits').on('value', snap=>{ DEPOSITS = snap.val() || {}; renderAdmin(); });
   db.ref('withdraws').on('value', snap=>{ WITHDRAWS = snap.val() || {}; renderAdmin(); });
@@ -299,6 +300,9 @@ function renderAdmin(){
           <input placeholder="পার্সোনাল নোটিশ লিখুন" id="notice-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:12.5px;">
           <button class="btn btn-outline" style="padding:9px 14px; width:auto; font-size:12px;" onclick="sendPersonalNotice('${id}')">পাঠান</button>
         </div>
+        <button class="btn ${u.canEditWallet?'btn-danger':'btn-outline'}" style="margin-top:8px; padding:8px; font-size:12px;" onclick="toggleWalletEditPermission('${id}', ${!u.canEditWallet})">
+          ${u.canEditWallet ? '🔓 Wallet Edit চালু আছে (বন্ধ করতে ট্যাপ করুন)' : '🔒 Wallet Edit পারমিশন দিন'}
+        </button>
       </div>`).join('') || '<div class="empty-state">কোনো ইউজার পাওয়া যায়নি</div>';
     if(query) document.getElementById('user-search-input').focus();
   }
@@ -307,13 +311,18 @@ function renderAdmin(){
     box.innerHTML = `
       <div class="task-card">
         <div class="field"><label>চ্যানেলের নাম</label><input id="ch-name" placeholder="যেমন: Official Channel"></div>
-        <div class="field"><label>চ্যানেল লিংক</label><input id="ch-url" placeholder="https://t.me/..."></div>
+        <div class="field"><label>চ্যানেল লিংক (Join বাটনের জন্য)</label><input id="ch-url" placeholder="https://t.me/..."></div>
+        <div class="field"><label>চ্যানেল ইউজারনেম (ভেরিফিকেশনের জন্য, @ সহ)</label><input id="ch-chatid" placeholder="@yourchannelusername"></div>
         <button class="btn btn-primary" onclick="adminAddChannel()">চ্যানেল যোগ করুন</button>
+      </div>
+      <div class="task-card">
+        <div class="field"><label>Verify Cloud Function এর URL</label><input id="set-verifyurl" placeholder="https://...cloudfunctions.net/checkChannels" value="${APP_SETTINGS.verifyFunctionUrl||''}"></div>
+        <button class="btn btn-primary" onclick="saveVerifyUrl()">সেভ করুন</button>
       </div>
       ${rows.map(([id,c])=>`
         <div class="channel-row">
           <div class="cic">📢</div>
-          <div class="cn">${escapeHtml(c.name)}</div>
+          <div class="cn">${escapeHtml(c.name)}${c.chatId ? ' · '+escapeHtml(c.chatId) : ''}</div>
           <button class="btn btn-danger" style="width:auto; padding:7px 14px; font-size:11.5px;" onclick="adminRemoveChannel('${id}')">Remove</button>
         </div>`).join('') || '<div class="empty-state">কোনো চ্যানেল যোগ করা হয়নি</div>'}
     `;
@@ -382,6 +391,14 @@ function renderAdmin(){
         <button class="btn btn-primary" onclick="saveWithdrawLimits()">সেভ করুন</button>
       </div>
       <div class="task-card">
+        <h3 style="margin-bottom:10px;">ডিপোজিট লিমিট</h3>
+        <div class="field"><label>সর্বনিম্ন ডিপোজিট (৳)</label>
+          <input id="set-depmin" type="number" placeholder="যেমন: 50" value="${s.depositMin||''}"></div>
+        <div class="field"><label>সর্বোচ্চ ডিপোজিট (৳)</label>
+          <input id="set-depmax" type="number" placeholder="যেমন: 10000" value="${s.depositMax||''}"></div>
+        <button class="btn btn-primary" onclick="saveDepositLimits()">সেভ করুন</button>
+      </div>
+      <div class="task-card">
         <h3 style="margin-bottom:10px;">রেফারেল সেটিংস</h3>
         <div class="field"><label>প্রতি রেফারে বোনাস (৳)</label>
           <input id="set-referbonus" type="number" placeholder="যেমন: 5" value="${s.referralBonus||''}"></div>
@@ -419,6 +436,26 @@ function renderAdmin(){
         <div class="task-card"><div class="task-desc">${escapeHtml(n.message)}</div></div>`).join('') || '<div class="empty-state">এখনো কোনো ব্রডকাস্ট পাঠানো হয়নি</div>'}
     `;
   }
+  else if(currentAdminTab==='referrals'){
+    const referred = Object.entries(USERS||{}).filter(([id,u])=>u.referredBy).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+    box.innerHTML = referred.map(([id,u])=>{
+      const referrer = USERS[u.referredBy];
+      let statusHtml = '';
+      if(u.referralStatus==='failed') statusHtml = '<span class="badge rejected">ব্যর্থ (একই ডিভাইস)</span>';
+      else if(u.referralStatus==='paid') statusHtml = `<span class="badge approved">Paid ৳${u.referralBonusAmount||''}</span>`;
+      else statusHtml = '<span class="badge pending">Pending</span>';
+      return `<div class="task-card">
+        <div class="task-top"><div style="font-weight:700;">${escapeHtml(referrer?referrer.name:'অজানা')} → ${escapeHtml(u.name)}</div>${statusHtml}</div>
+        <div class="task-desc">Joined: ${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</div>
+      </div>`;
+    }).join('') || '<div class="empty-state">এখনো কোনো রেফারেল নেই</div>';
+  }
+}
+
+function toggleWalletEditPermission(userId, allow){
+  db.ref('users/'+userId+'/canEditWallet').set(allow);
+  db.ref('notifications/'+userId).push({message: allow ? 'অ্যাডমিন আপনাকে Wallet Number পরিবর্তনের অনুমতি দিয়েছে' : 'Wallet Number পরিবর্তনের অনুমতি বন্ধ করা হয়েছে', at:Date.now(), read:false});
+  showToast(allow ? 'পারমিশন দেওয়া হয়েছে' : 'পারমিশন বন্ধ করা হয়েছে');
 }
 
 function sendPersonalNotice(userId){
@@ -477,6 +514,13 @@ function saveWithdrawLimits(){
   const max = Number(document.getElementById('set-wdmax').value)||999999;
   db.ref('settings/withdrawMin').set(min);
   db.ref('settings/withdrawMax').set(max);
+  showToast('সেভ হয়েছে');
+}
+function saveDepositLimits(){
+  const min = Number(document.getElementById('set-depmin').value)||0;
+  const max = Number(document.getElementById('set-depmax').value)||999999;
+  db.ref('settings/depositMin').set(min);
+  db.ref('settings/depositMax').set(max);
   showToast('সেভ হয়েছে');
 }
 function copyText(text, btnEl){
@@ -577,6 +621,7 @@ function payPendingReferralBonus(userId){
     db.ref('settings/totalPaidOut').transaction(v=>(v||0)+pr.bonus);
     db.ref('transactions/'+pr.referrerUid).push({type:'referral', amount:pr.bonus, note:'রেফারেল বোনাস: '+pr.referredName+' (উত্তোলন সম্পন্ন)', status:'approved', at:Date.now()});
     db.ref('pending_referral_bonus/'+userId+'/paid').set(true);
+    db.ref('users/'+userId+'/referralStatus').set('paid');
   });
 }
 
@@ -594,12 +639,18 @@ function adminAdjustBalance(userId){
 function adminAddChannel(){
   const name = document.getElementById('ch-name').value.trim();
   const url = document.getElementById('ch-url').value.trim();
+  const chatId = document.getElementById('ch-chatid').value.trim();
   if(!name || !url){ showToast('নাম ও লিংক দিন'); return; }
-  db.ref('settings/requiredChannels').push({name, url});
-  document.getElementById('ch-name').value=''; document.getElementById('ch-url').value='';
+  db.ref('settings/requiredChannels').push({name, url, chatId});
+  document.getElementById('ch-name').value=''; document.getElementById('ch-url').value=''; document.getElementById('ch-chatid').value='';
   showToast('চ্যানেল যোগ হয়েছে');
 }
 function adminRemoveChannel(id){ db.ref('settings/requiredChannels/'+id).remove(); }
+function saveVerifyUrl(){
+  const url = document.getElementById('set-verifyurl').value.trim();
+  db.ref('settings/verifyFunctionUrl').set(url);
+  showToast('সেভ হয়েছে');
+}
 
 function adminAddFunding(){
   const amount = Number(document.getElementById('fund-amount').value);
