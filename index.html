@@ -55,26 +55,33 @@ body{
 
 #loading-screen{
   position:fixed; inset:0; z-index:500;
-  background:linear-gradient(160deg, var(--primary-dark) 0%, var(--primary) 55%, var(--amber) 140%);
+  background:radial-gradient(circle at 50% 30%, #123A2E 0%, #061410 65%, #020806 100%);
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  transition:opacity .4s ease, visibility .4s ease;
+  transition:opacity .5s ease, visibility .5s ease; overflow:hidden;
 }
 #loading-screen.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+#loading-screen::before, #loading-screen::after{
+  content:""; position:absolute; width:280px; height:280px; border-radius:50%; filter:blur(70px); opacity:.35;
+}
+#loading-screen::before{ background:#12E6A0; top:-60px; left:-60px; animation:floatBlob 7s ease-in-out infinite; }
+#loading-screen::after{ background:#12B4E6; bottom:-70px; right:-50px; animation:floatBlob 8s ease-in-out infinite reverse; }
+@keyframes floatBlob{ 0%,100%{ transform:translate(0,0); } 50%{ transform:translate(20px,25px); } }
 .loading-logo{
-  width:88px; height:88px; border-radius:26px; background:rgba(255,255,255,0.15);
-  display:flex; align-items:center; justify-content:center; margin-bottom:18px;
-  animation:loadingPulse 1.8s ease-in-out infinite;
+  position:relative; width:92px; height:92px; border-radius:28px;
+  background:linear-gradient(135deg, rgba(18,230,160,0.18), rgba(18,180,230,0.18));
+  border:1px solid rgba(255,255,255,0.12);
+  display:flex; align-items:center; justify-content:center; margin-bottom:20px;
+  animation:loadingPulse 2.2s ease-in-out infinite;
+  box-shadow:0 0 40px rgba(18,230,160,0.25);
 }
-.loading-icon{ font-size:40px; }
-.loading-title{ color:#fff; font-size:26px; font-weight:800; letter-spacing:.02em; font-family:'Space Grotesk','Inter',sans-serif; }
-.loading-sub{ color:rgba(255,255,255,0.85); font-size:13px; margin-top:6px; letter-spacing:.05em; }
-.loading-spinner{
-  width:30px; height:30px; border-radius:50%; margin-top:26px;
-  border:3px solid rgba(255,255,255,0.3); border-top-color:#fff;
-  animation:loadingSpin .8s linear infinite;
-}
-@keyframes loadingPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.08); } }
-@keyframes loadingSpin{ to{ transform:rotate(360deg); } }
+.loading-icon{ font-size:42px; filter:drop-shadow(0 0 10px rgba(18,230,160,0.6)); }
+.loading-title{ color:#fff; font-size:27px; font-weight:800; letter-spacing:.02em; font-family:'Space Grotesk','Inter',sans-serif;
+  background:linear-gradient(90deg,#fff,#B9F5E0); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.loading-sub{ color:#8FA69D; font-size:12.5px; margin-top:7px; letter-spacing:.08em; text-transform:uppercase; }
+.loading-bar-track{ width:150px; height:4px; border-radius:4px; background:rgba(255,255,255,0.1); margin-top:28px; overflow:hidden; }
+.loading-bar-fill{ width:40%; height:100%; border-radius:4px; background:linear-gradient(90deg,#12E6A0,#12B4E6); animation:loadingSlide 1.3s ease-in-out infinite; }
+@keyframes loadingPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.07); } }
+@keyframes loadingSlide{ 0%{ transform:translateX(-120%); } 100%{ transform:translateX(360%); } }
 
 /* Top bar */
 .topbar{
@@ -215,6 +222,15 @@ body{
 
 /* Admin */
 .channel-row{ display:flex; align-items:center; gap:10px; background:var(--green-bg); border-radius:14px; padding:12px 14px; margin-bottom:10px;}
+.gate-card{ width:100%; max-width:380px; margin:0 20px; background:#0D1512; border-radius:22px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.08);}
+.gate-topbar{ height:5px; background:linear-gradient(90deg, #12E6A0, #12B4E6, #B24FE6);}
+.gate-warn-icon{ font-size:44px; filter:drop-shadow(0 0 14px rgba(18,230,160,0.6));}
+.gate-channel-item{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:13px 14px; margin-bottom:10px;}
+.gate-channel-item.joined{ background:rgba(18,230,160,0.1); border-color:rgba(18,230,160,0.35);}
+.gate-channel-item .gc-name{ flex:1; color:#fff; font-size:14px; font-weight:700;}
+.gate-channel-item .gc-check{ width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; font-size:12px; color:transparent; flex-shrink:0;}
+.gate-channel-item.joined .gc-check{ background:#12E6A0; border-color:#12E6A0; color:#04241C;}
+.gate-channel-item a{ background:linear-gradient(135deg,#12E6A0,#12B4E6); color:#04241C; font-size:12px; font-weight:800; padding:8px 16px; border-radius:20px; text-decoration:none; flex-shrink:0;}
 .channel-row .cic{ width:34px;height:34px;border-radius:50%; background:var(--primary); color:#fff; display:flex;align-items:center;justify-content:center; font-size:15px;}
 .channel-row .cn{ flex:1; font-size:13.5px; font-weight:700;}
 .channel-row a{ background:var(--primary); color:#fff; font-size:11.5px; font-weight:700; padding:7px 14px; border-radius:20px; text-decoration:none;}
@@ -233,11 +249,11 @@ body{
 
 <div id="loading-screen">
   <div class="loading-logo">
-    <div class="loading-icon">🏠</div>
+    <div class="loading-icon">💰</div>
   </div>
   <div class="loading-title">OpsEarn</div>
-  <div class="loading-sub">লোড হচ্ছে...</div>
-  <div class="loading-spinner"></div>
+  <div class="loading-sub">Loading your earnings...</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
 </div>
 
 <div id="app">
@@ -425,7 +441,7 @@ body{
       <div class="cic">📲</div>
       <div class="cn">এই নাম্বারে Send Money করুন:<br><span id="deposit-number-text" style="font-size:15px;">লোড হচ্ছে...</span></div>
     </div>
-    <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"></div>
+    <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"><p id="dep-limit-hint" style="font-size:11px; color:var(--ink-soft); margin-top:6px;"></p></div>
     <div class="field"><label>ট্রানজেকশন আইডি (Send Money করার পর)</label><input id="dep-trxid" placeholder="TrxID লিখুন"></div>
     <button class="btn btn-primary" onclick="submitDeposit()">জমা দিন</button>
     <p style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; text-align:center;">অ্যাডমিন যাচাই করার পর ব্যালেন্স যোগ হবে।</p>
@@ -448,8 +464,13 @@ body{
     <div class="sheet-handle"></div>
     <h2>বন্ধুদের ইনভাইট করুন</h2>
     <p id="refer-sheet-desc" style="font-size:13px; color:var(--ink-soft); margin-bottom:14px;"></p>
-    <div class="field"><input id="refer-link" readonly></div>
+    <div class="field"><input id="refer-link" readonly="readonly"></div>
     <button class="btn btn-primary" onclick="copyReferLink()">লিংক কপি করুন</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px; margin-bottom:8px;">
+      <h3 style="font-size:14px;">Your Referrals</h3>
+      <span id="refer-total-count" style="font-size:12.5px; color:var(--ink-soft); font-weight:600;">Total: 0</span>
+    </div>
+    <div id="referrals-list"></div>
   </div>
 </div>
 
@@ -512,15 +533,19 @@ body{
   </div>
 </div>
 
-<div class="overlay" id="gate-overlay" style="align-items:center; display:none;">
-  <div class="sheet" style="border-radius:24px; margin:0 20px; max-height:80vh;">
-    <div style="text-align:center; padding:6px 0 14px;">
-      <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--primary),var(--amber)); display:flex;align-items:center;justify-content:center; font-size:28px; margin:0 auto 12px;">📣</div>
-      <h2>Welcome to OpsEarn!</h2>
-      <p style="font-size:12.5px; color:var(--ink-soft); margin-top:6px;">অ্যাপ ব্যবহার করার আগে নিচের চ্যানেলগুলোতে জয়েন করুন</p>
+<div class="overlay" id="gate-overlay" style="align-items:center; display:none; background:rgba(0,0,0,0.96);">
+  <div class="gate-card">
+    <div class="gate-topbar"></div>
+    <div style="text-align:center; padding:28px 22px 8px;">
+      <div class="gate-warn-icon">⚠️</div>
+      <h2 style="color:#fff; font-size:22px; font-weight:800; margin-top:14px;">ATTENTION!</h2>
+      <p style="font-size:13px; color:#B9C4BF; margin-top:8px;">অ্যাকাউন্ট অ্যাক্টিভ করতে ও পেমেন্ট পেতে আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন</p>
     </div>
-    <div id="gate-channel-list" style="margin:10px 0 18px;"></div>
-    <button class="btn btn-primary" onclick="confirmJoinedChannels()">সব জয়েন করেছি, Continue</button>
+    <div id="gate-channel-list" style="padding:6px 22px 4px;"></div>
+    <div style="padding:14px 22px 28px;">
+      <button class="btn" id="gate-verify-btn" onclick="confirmJoinedChannels()" style="background:linear-gradient(135deg,#12E6A0,#12B4E6); color:#04241C; font-weight:800;">Verify &amp; Enter</button>
+      <p style="text-align:center; font-size:11.5px; color:#E5484D; margin-top:12px;">*চ্যানেল থেকে বের হয়ে গেলে অ্যাকাউন্ট ব্লক দেখানো হতে পারে</p>
+    </div>
   </div>
 </div>
 
@@ -581,6 +606,8 @@ let REQUIRED_CHANNELS = {}, FUNDING_POOL = 0;
 let SUPPORT_LINK = '', BOT_USERNAME = '', APP_SHORT_NAME = 'app';
 let DEPOSIT_NUMBERS = {};
 let WITHDRAW_MIN = 0, WITHDRAW_MAX = 999999;
+let DEPOSIT_MIN = 0, DEPOSIT_MAX = 999999;
+let VERIFY_FUNCTION_URL = '';
 let MIN_TASK_PAY = 0;
 let REFERRAL_COMMISSION_PERCENT = 0;
 let DEV_CREDIT_TEXT = '', DEV_LINK = '';
@@ -625,12 +652,14 @@ function handleReferral(referrerUid){
       const sameDevice = (refDeviceId === myDeviceId) || linkedAccounts.includes(referrerUid);
       if(sameDevice){
         // fake refer — do not pay bonus, log it visibly as failed
+        db.ref('users/'+myUid+'/referralStatus').set('failed');
         db.ref('fraud_flags/'+myUid).set({reason:'same_device_referral', referrer:referrerUid, deviceId:myDeviceId, at:Date.now()});
         db.ref('transactions/'+referrerUid).push({type:'referral_failed', amount:0, note:'রেফার ব্যর্থ (একই ডিভাইস): '+myName, status:'rejected', at:Date.now()});
         showToast('রেফার লিংক দিয়ে যোগ হয়েছেন, তবে একই ডিভাইস হওয়ায় বোনাস প্রযোজ্য নয়');
       } else {
         db.ref('settings/referralBonus').once('value').then(bonusSnap=>{
           const bonus = bonusSnap.val() || 0;
+          db.ref('users/'+myUid).update({referralStatus:'pending', referralBonusAmount:bonus});
           // bonus stays pending until this referred user completes their first withdrawal
           db.ref('pending_referral_bonus/'+myUid).set({referrerUid, bonus, referredName:myName, paid:false, at:Date.now()});
           db.ref('users/'+referrerUid).transaction(u=>{ if(u){ u.referrals=(u.referrals||0)+1; } return u; });
@@ -648,7 +677,7 @@ function attachListeners(){
     renderUser();
   });
   db.ref('tasks').on('value', snap=>{ TASKS = snap.val() || {}; renderTasks(); renderHome(); });
-  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderHome(); });
+  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderHome(); renderReferralsList(); });
   db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderMySubmissions(); });
   db.ref('settings/requiredChannels').on('value', snap=>{ REQUIRED_CHANNELS = snap.val() || {}; renderGate(); });
   db.ref('settings/fundingPool').on('value', snap=>{ FUNDING_POOL = snap.val() || 0; });
@@ -661,6 +690,9 @@ function attachListeners(){
   db.ref('settings/appShortName').on('value', snap=>{ APP_SHORT_NAME = snap.val() || 'app'; updateReferLink(); });
   db.ref('settings/withdrawMin').on('value', snap=>{ WITHDRAW_MIN = snap.val() || 0; updateWdHint(); });
   db.ref('settings/withdrawMax').on('value', snap=>{ WITHDRAW_MAX = snap.val() || 999999; updateWdHint(); });
+  db.ref('settings/depositMin').on('value', snap=>{ DEPOSIT_MIN = snap.val() || 0; updateDepHint(); });
+  db.ref('settings/depositMax').on('value', snap=>{ DEPOSIT_MAX = snap.val() || 999999; updateDepHint(); });
+  db.ref('settings/verifyFunctionUrl').on('value', snap=>{ VERIFY_FUNCTION_URL = snap.val() || ''; });
   db.ref('settings/totalPaidOut').on('value', snap=>{
     document.getElementById('stat-totalpaid').textContent = '৳'+(snap.val()||0);
   });
@@ -678,24 +710,49 @@ function attachListeners(){
   db.ref('notifications_broadcast').on('value', snap=>{ BROADCAST_NOTICES = snap.val() || {}; updateNoticeBadge(); });
 }
 
-/* ============ REQUIRED CHANNELS GATE ============ */
+/* ============ REQUIRED CHANNELS GATE (real server-side verification) ============ */
 let gateConfirmedThisSession = false; // resets every time the app is opened fresh
+let gateJoinStatus = {}; // last known per-channel status from the server
 function renderGate(){
   const channels = Object.entries(REQUIRED_CHANNELS||{});
   const overlay = document.getElementById('gate-overlay');
   if(!channels.length || !myUserData){ overlay.style.display='none'; return; }
   if(gateConfirmedThisSession){ overlay.style.display='none'; return; }
   document.getElementById('gate-channel-list').innerHTML = channels.map(([id,c])=>`
-    <div class="channel-row">
-      <div class="cic">📢</div>
-      <div class="cn">${escapeHtml(c.name)}</div>
-      <a href="${c.url}" target="_blank" rel="noopener">Join</a>
+    <div class="gate-channel-item ${gateJoinStatus[c.chatId]?'joined':''}" id="gate-item-${id}">
+      <div class="gc-check">✓</div>
+      <div class="gc-name">${escapeHtml(c.name)}</div>
+      <a href="${c.url}" target="_blank" rel="noopener">${gateJoinStatus[c.chatId]?'Joined':'Join'}</a>
     </div>`).join('');
   overlay.style.display = 'flex';
+  if(VERIFY_FUNCTION_URL) autoCheckChannels();
 }
+
+function autoCheckChannels(){
+  const channels = Object.values(REQUIRED_CHANNELS||{}).filter(c=>c.chatId);
+  if(!channels.length || !tg || !tg.initData) return;
+  const btn = document.getElementById('gate-verify-btn');
+  if(btn){ btn.textContent = 'যাচাই করা হচ্ছে...'; }
+  fetch(VERIFY_FUNCTION_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ initData: tg.initData, channelIds: channels.map(c=>c.chatId) })
+  }).then(r=>r.json()).then(data=>{
+    gateJoinStatus = data.results || {};
+    if(btn) btn.textContent = 'Verify & Enter';
+    renderGate();
+    if(data.allJoined){
+      gateConfirmedThisSession = true;
+      document.getElementById('gate-overlay').style.display = 'none';
+    }
+  }).catch(()=>{
+    if(btn) btn.textContent = 'Verify & Enter';
+    showToast('যাচাই করতে সমস্যা হয়েছে, আবার চেষ্টা করুন');
+  });
+}
+
 function confirmJoinedChannels(){
-  gateConfirmedThisSession = true;
-  document.getElementById('gate-overlay').style.display = 'none';
+  autoCheckChannels();
 }
 
 /* ============ RENDER: HOME ============ */
@@ -784,14 +841,17 @@ function renderUser(){
 /* ============ WALLET NUMBER BINDING ============ */
 function openWalletSheet(){
   const bound = myUserData && myUserData.walletNumber;
+  const canEdit = myUserData && myUserData.canEditWallet;
+  const locked = bound && !canEdit;
   document.getElementById('wallet-number-input').value = bound || '';
-  document.getElementById('wallet-number-input').disabled = !!bound;
+  document.getElementById('wallet-number-input').disabled = locked;
   document.getElementById('wallet-method-input').value = (myUserData && myUserData.walletMethod) || 'bKash';
-  document.getElementById('wallet-method-input').disabled = !!bound;
-  document.getElementById('wallet-bind-btn').style.display = bound ? 'none' : 'block';
-  document.getElementById('wallet-status-text').textContent = bound
-    ? 'এই নাম্বারটি ইতিমধ্যে আপনার অ্যাকাউন্টে বাইন্ড করা আছে। পরিবর্তন করতে চাইলে সাপোর্টে যোগাযোগ করুন।'
-    : 'এই নাম্বারেই উইথড্রর টাকা পাঠানো হবে। প্রতিটা নাম্বার শুধু একটা অ্যাকাউন্টে বাইন্ড করা যাবে, একবার বাইন্ড করার পর নিজে থেকে পাল্টানো যাবে না।';
+  document.getElementById('wallet-method-input').disabled = locked;
+  document.getElementById('wallet-bind-btn').style.display = locked ? 'none' : 'block';
+  document.getElementById('wallet-bind-btn').textContent = bound ? 'নাম্বার আপডেট করুন' : 'নাম্বার বাইন্ড করুন';
+  document.getElementById('wallet-status-text').textContent = locked
+    ? 'এই নাম্বারটি ইতিমধ্যে আপনার অ্যাকাউন্টে বাইন্ড করা আছে। পরিবর্তন করতে চাইলে সাপোর্টে যোগাযোগ করুন — অ্যাডমিন অনুমতি দিলে আপনি নিজে পরিবর্তন করতে পারবেন।'
+    : (bound ? 'অ্যাডমিন আপনাকে নাম্বার পরিবর্তনের অনুমতি দিয়েছে — নতুন নাম্বার দিন।' : 'এই নাম্বারেই উইথড্রর টাকা পাঠানো হবে। প্রতিটা নাম্বার শুধু একটা অ্যাকাউন্টে বাইন্ড করা যাবে, একবার বাইন্ড করার পর নিজে থেকে পাল্টানো যাবে না।');
   openSheet('sheet-walletnumber');
 }
 
@@ -810,7 +870,7 @@ function bindWalletNumber(){
       showToast('এই নাম্বারটি ইতিমধ্যে অন্য একাউন্টে ব্যবহার হয়েছে');
       return;
     }
-    db.ref('users/'+myUid).update({walletNumber:num, walletMethod:method});
+    db.ref('users/'+myUid).update({walletNumber:num, walletMethod:method, canEditWallet:false});
     closeSheet('sheet-walletnumber');
     showToast('নাম্বার বাইন্ড হয়েছে');
   });
@@ -1007,11 +1067,18 @@ function updateDepositNumberDisplay(){
   document.getElementById('deposit-number-text').textContent = num || (method+' নাম্বার এখনো সেট করা হয়নি — অ্যাডমিনের সাথে যোগাযোগ করুন');
 }
 
+function updateDepHint(){
+  const el = document.getElementById('dep-limit-hint');
+  if(el) el.textContent = 'সর্বনিম্ন ৳'+DEPOSIT_MIN+' — সর্বোচ্চ ৳'+DEPOSIT_MAX;
+}
+
 function submitDeposit(){
   const amount = Number(document.getElementById('dep-amount').value);
   const method = document.getElementById('dep-method').value;
   const trxid = document.getElementById('dep-trxid').value.trim();
   if(!amount || !trxid){ showToast('সব তথ্য পূরণ করুন'); return; }
+  if(amount < DEPOSIT_MIN){ showToast('সর্বনিম্ন ডিপোজিট ৳'+DEPOSIT_MIN); return; }
+  if(amount > DEPOSIT_MAX){ showToast('সর্বোচ্চ ডিপোজিট ৳'+DEPOSIT_MAX); return; }
   db.ref('deposits').push({userId:myUid, userName:myName, amount, method, trxid, status:'pending', at:Date.now()});
   closeSheet('sheet-deposit');
   showToast('ডিপোজিট রিকোয়েস্ট পাঠানো হয়েছে');
@@ -1337,7 +1404,22 @@ function showScreen(name){
 function openSheet(id){ document.getElementById(id).classList.add('active'); }
 function closeSheet(id){ document.getElementById(id).classList.remove('active'); }
 function closeSheetBg(e,id){ if(e.target.id===id) closeSheet(id); }
-function openRefer(){ openSheet('sheet-refer'); }
+function openRefer(){ renderReferralsList(); openSheet('sheet-refer'); }
+
+function renderReferralsList(){
+  const mine = Object.entries(USERS||{}).filter(([id,u])=>u.referredBy===myUid).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  document.getElementById('refer-total-count').textContent = 'Total: '+mine.length;
+  document.getElementById('referrals-list').innerHTML = mine.length ? mine.map(([id,u])=>{
+    let statusHtml = '';
+    if(u.referralStatus==='failed') statusHtml = '<span class="badge rejected">ব্যর্থ</span>';
+    else if(u.referralStatus==='paid') statusHtml = `<span class="badge approved">+৳${u.referralBonusAmount||''}</span>`;
+    else statusHtml = '<span class="badge pending">পেন্ডিং</span>';
+    return `<div class="tx-row">
+      <div class="tx-info"><div class="n">${escapeHtml(u.name)}</div><div class="s">Joined: ${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</div></div>
+      ${statusHtml}
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="eic">👥</div>এখনো কাউকে রেফার করেননি</div>';
+}
 function copyReferLink(){
   const inp = document.getElementById('refer-link');
   inp.select(); document.execCommand('copy');
@@ -1359,4 +1441,4 @@ attachListeners();
 setTimeout(hideLoadingScreen, 8000); // safety fallback if connection is slow
 </script>
 </body>
-        </html>
+</html>
