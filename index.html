@@ -438,9 +438,10 @@ body{
     <div class="field"><label>পেমেন্ট মেথড</label>
       <select id="dep-method" onchange="updateDepositNumberDisplay()"><option>bKash</option><option>Nagad</option><option>Rocket</option></select>
     </div>
-    <div class="channel-row" id="deposit-number-box" style="align-items:flex-start;">
+    <div class="channel-row" id="deposit-number-box" style="align-items:center;">
       <div class="cic">📲</div>
       <div class="cn">এই নাম্বারে Send Money করুন:<br><span id="deposit-number-text" style="font-size:15px;">লোড হচ্ছে...</span></div>
+      <button class="btn btn-outline" style="width:auto; padding:8px 14px; font-size:11.5px; flex-shrink:0;" onclick="copyDepositNumber()">📋 কপি</button>
     </div>
     <div class="field"><label>পরিমাণ (৳)</label><input id="dep-amount" type="number" placeholder="যেমন: 100"><p id="dep-limit-hint" style="font-size:11px; color:var(--ink-soft); margin-top:6px;"></p></div>
     <div class="field"><label>ট্রানজেকশন আইডি (Send Money করার পর)</label><input id="dep-trxid" placeholder="TrxID লিখুন"></div>
@@ -723,7 +724,7 @@ function renderGate(){
     <div class="gate-channel-item ${gateJoinStatus[c.chatId]?'joined':''}" id="gate-item-${id}">
       <div class="gc-check">✓</div>
       <div class="gc-name">${escapeHtml(c.name)}</div>
-      <a href="${c.url}" target="_blank" rel="noopener">${gateJoinStatus[c.chatId]?'Joined':'Join'}</a>
+      <a href="${normalizeUrl(c.url)}" target="_blank" rel="noopener">${gateJoinStatus[c.chatId]?'Joined':'Join'}</a>
     </div>`).join('');
   overlay.style.display = 'flex';
   if(VERIFY_FUNCTION_URL) autoCheckChannels();
@@ -786,13 +787,20 @@ function openNotices(){
   document.getElementById('notice-badge').style.display = 'none';
 }
 
+function normalizeUrl(url){
+  if(!url) return url;
+  url = url.trim();
+  if(!/^https?:\/\//i.test(url)) return 'https://' + url;
+  return url;
+}
+
 function renderDevCredit(){
   const el = document.getElementById('profile-dev-credit');
   if(!el) return;
   if(!DEV_CREDIT_TEXT){ el.innerHTML = ''; return; }
   const badgeStyle = 'display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, var(--primary), var(--amber)); color:#fff; font-size:13px; font-weight:700; padding:9px 18px; border-radius:24px; text-decoration:none; box-shadow:0 4px 14px rgba(13,122,95,0.3);';
   if(DEV_LINK){
-    el.innerHTML = `<a href="${DEV_LINK}" target="_blank" style="${badgeStyle}">✨ ${escapeHtml(DEV_CREDIT_TEXT)}</a>`;
+    el.innerHTML = `<a href="${normalizeUrl(DEV_LINK)}" target="_blank" style="${badgeStyle}">✨ ${escapeHtml(DEV_CREDIT_TEXT)}</a>`;
   } else {
     el.innerHTML = `<span style="${badgeStyle}">✨ ${escapeHtml(DEV_CREDIT_TEXT)}</span>`;
   }
@@ -977,7 +985,7 @@ function openTaskDetail(id){
       <div class="stat-card"><div class="v num">৳${t.pay}</div><div class="l">পারিশ্রমিক</div></div>
       <div class="stat-card"><div class="v num">${t.completedCount||0}/${t.slots}</div><div class="l">সম্পন্ন</div></div>
     </div>
-    ${t.targetLink ? `<a href="${t.targetLink}" target="_blank" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none; margin-bottom:16px;">🔗 Open Task Link</a>` : ''}
+    ${t.targetLink ? `<a href="${normalizeUrl(t.targetLink)}" target="_blank" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none; margin-bottom:16px;">🔗 Open Task Link</a>` : ''}
     ${proofType!=='screenshot' ? `<div class="field"><label>UID / প্রুফ লিংক</label><input id="proof-uid" placeholder="আপনার UID বা প্রোফাইল লিংক"></div>` : ''}
     ${proofType!=='uid' ? `
     <div class="field">
@@ -985,8 +993,7 @@ function openTaskDetail(id){
       <input type="file" accept="image/*" multiple id="proof-file" onchange="handleProofFileSelect(event)">
       <div id="proof-preview" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;"></div>
       <p id="proof-file-status" style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;"></p>
-    </div>
-    <div class="field"><label>অথবা স্ক্রিনশটের লিংক পেস্ট করুন (Google Drive/Imgur ইত্যাদি)</label><input id="proof-shot" placeholder="স্ক্রিনশটের লিংক"></div>` : ''}
+    </div>` : ''}
     <button class="btn btn-primary" onclick="submitProof('${id}')">প্রুফ জমা দিন</button>
   `;
   proofImagesData = [];
@@ -1066,6 +1073,12 @@ function updateDepositNumberDisplay(){
   const method = document.getElementById('dep-method').value;
   const num = DEPOSIT_NUMBERS[method];
   document.getElementById('deposit-number-text').textContent = num || (method+' নাম্বার এখনো সেট করা হয়নি — অ্যাডমিনের সাথে যোগাযোগ করুন');
+}
+function copyDepositNumber(){
+  const method = document.getElementById('dep-method').value;
+  const num = DEPOSIT_NUMBERS[method];
+  if(!num){ showToast('নাম্বার এখনো সেট করা হয়নি'); return; }
+  navigator.clipboard.writeText(num).then(()=>showToast('কপি হয়েছে')).catch(()=>showToast('কপি করতে সমস্যা হয়েছে'));
 }
 
 function updateDepHint(){
@@ -1427,7 +1440,7 @@ function copyReferLink(){
   showToast('লিংক কপি হয়েছে');
 }
 function openSupport(){
-  if(SUPPORT_LINK){ window.open(SUPPORT_LINK, '_blank'); }
+  if(SUPPORT_LINK){ window.open(normalizeUrl(SUPPORT_LINK), '_blank'); }
   else { showToast('সাপোর্ট লিংক এখনো সেট করা হয়নি'); }
 }
 function showToast(msg){
