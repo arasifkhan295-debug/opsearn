@@ -7,6 +7,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <style>
 :root{
@@ -119,10 +120,11 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
-/* ⚠️ এই পাসওয়ার্ড অবশ্যই পরিবর্তন করুন — এবং এই ফাইলের লিংক শুধু নিজের কাছে রাখুন,
-   কোথাও শেয়ার করবেন না বা মূল অ্যাপের সাথে লিংক করবেন না। */
-const ADMIN_PASSWORD = "1234567";
+/* ⚠️ এই ইমেইলটা আপনার Firebase Authentication এ বানানো Admin একাউন্টের ইমেইল —
+   পাসওয়ার্ড এখন Firebase নিজে নিরাপদে সংরক্ষণ করে, কোডে লেখা থাকে না। */
+const ADMIN_EMAIL = "arasifkhan295@gmail.com";
 
 let TASKS = {}, USERS = {}, SUBMISSIONS = {}, DEPOSITS = {}, WITHDRAWS = {}, REQUIRED_CHANNELS = {}, FUNDING_POOL = 0, GIFT_CODES = {};
 let APP_SETTINGS = {};
@@ -163,13 +165,17 @@ function showToast(msg){
 
 function adminLogin(){
   const val = document.getElementById('admin-pass-input').value;
-  if(val !== ADMIN_PASSWORD){ showToast('ভুল পাসওয়ার্ড'); return; }
-  document.getElementById('screen-login').classList.remove('active');
-  document.getElementById('screen-admin').classList.add('active');
-  if(!listenersAttached){ attachListeners(); listenersAttached = true; }
-  setAdminTab('overview');
+  auth.signInWithEmailAndPassword(ADMIN_EMAIL, val).then(()=>{
+    document.getElementById('screen-login').classList.remove('active');
+    document.getElementById('screen-admin').classList.add('active');
+    if(!listenersAttached){ attachListeners(); listenersAttached = true; }
+    setAdminTab('overview');
+  }).catch(()=>{
+    showToast('ভুল পাসওয়ার্ড');
+  });
 }
 function adminLogout(){
+  auth.signOut();
   document.getElementById('screen-admin').classList.remove('active');
   document.getElementById('screen-login').classList.add('active');
   document.getElementById('admin-pass-input').value = '';
@@ -177,7 +183,7 @@ function adminLogout(){
 
 function attachListeners(){
   db.ref('tasks').on('value', snap=>{ TASKS = snap.val() || {}; renderAdmin(); });
-  db.ref('users').on('value', snap=>{ USEchangemRSangemeRS = snap.val() || {}; renderAdmin(); });
+  db.ref('users').on('value', snap=>{ USERS = snap.val() || {}; renderAdmin(); });
   db.ref('submissions').on('value', snap=>{ SUBMISSIONS = snap.val() || {}; renderAdmin(); });
   db.ref('deposits').on('value', snap=>{ DEPOSITS = snap.val() || {}; renderAdmin(); });
   db.ref('withdraws').on('value', snap=>{ WITHDRAWS = snap.val() || {}; renderAdmin(); });
@@ -279,32 +285,15 @@ function renderAdmin(){
       </div>`).join('') || '<div class="empty-state">কোনো উইথড্র নেই</div>';
   }
   else if(currentAdminTab==='users'){
-    const query = (document.getElementById('user-search-input') ? document.getElementById('user-search-input').value : '').trim().toLowerCase();
-    let rows = Object.entries(USERS||{}).sort((a,b)=>b[1].createdAt-a[1].createdAt);
-    if(query){
-      rows = rows.filter(([id,u])=>
-        (u.name||'').toLowerCase().includes(query) || (u.uid||'').toLowerCase().includes(query)
-      );
+    if(document.getElementById('user-search-input')){
+      filterUsersList();
+      return;
     }
     box.innerHTML = `
-      <div class="field"><input id="user-search-input" placeholder="🔍 নাম বা UID দিয়ে সার্চ করুন" value="${escapeHtml(query)}" oninput="renderAdmin()"></div>
-    ` + rows.map(([id,u])=>`
-      <div class="task-card">
-        <div class="task-top"><div style="font-weight:700;">${escapeHtml(u.name)}</div><div class="num">৳${(u.balance||0).toFixed(2)}</div></div>
-        <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletMethod?u.walletMethod+' ':''}${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
-        <div style="display:flex; gap:8px; margin-top:10px;">
-          <input type="number" placeholder="+/- amount" id="adj-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
-          <button class="btn btn-primary" style="padding:9px 14px; width:auto;" onclick="adminAdjustBalance('${id}')">Apply</button>
-        </div>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <input placeholder="পার্সোনাল নোটিশ লিখুন" id="notice-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:12.5px;">
-          <button class="btn btn-outline" style="padding:9px 14px; width:auto; font-size:12px;" onclick="sendPersonalNotice('${id}')">পাঠান</button>
-        </div>
-        <button class="btn ${u.canEditWallet?'btn-danger':'btn-outline'}" style="margin-top:8px; padding:8px; font-size:12px;" onclick="toggleWalletEditPermission('${id}', ${!u.canEditWallet})">
-          ${u.canEditWallet ? '🔓 Wallet Edit চালু আছে (বন্ধ করতে ট্যাপ করুন)' : '🔒 Wallet Edit পারমিশন দিন'}
-        </button>
-      </div>`).join('') || '<div class="empty-state">কোনো ইউজার পাওয়া যায়নি</div>';
-    if(query) document.getElementById('user-search-input').focus();
+      <div class="field"><input id="user-search-input" placeholder="🔍 নাম বা UID দিয়ে সার্চ করুন" oninput="filterUsersList()"></div>
+      <div id="users-results-list"></div>
+    `;
+    filterUsersList();
   }
   else if(currentAdminTab==='channels'){
     const rows = Object.entries(REQUIRED_CHANNELS||{});
@@ -433,7 +422,10 @@ function renderAdmin(){
       <p style="font-size:12px; color:var(--ink-soft); margin:14px 0 8px;">নির্দিষ্ট একজন ইউজারকে নোটিশ পাঠাতে Users ট্যাবে যান, প্রতিটা ইউজার কার্ডে নোটিশ পাঠানোর ঘর আছে।</p>
       <h3 style="font-size:14px; margin:14px 0 8px;">সাম্প্রতিক ব্রডকাস্ট</h3>
       ${rows.map(([id,n])=>`
-        <div class="task-card"><div class="task-desc">${escapeHtml(n.message)}</div></div>`).join('') || '<div class="empty-state">এখনো কোনো ব্রডকাস্ট পাঠানো হয়নি</div>'}
+        <div class="task-card">
+          <div class="task-desc">${escapeHtml(n.message)}</div>
+          <button class="btn btn-danger" style="margin-top:8px; padding:7px; font-size:11.5px;" onclick="deleteBroadcastNotice('${id}')">🗑️ ডিলিট করুন</button>
+        </div>`).join('') || '<div class="empty-state">এখনো কোনো ব্রডকাস্ট পাঠানো হয়নি</div>'}
     `;
   }
   else if(currentAdminTab==='referrals'){
@@ -450,6 +442,35 @@ function renderAdmin(){
       </div>`;
     }).join('') || '<div class="empty-state">এখনো কোনো রেফারেল নেই</div>';
   }
+}
+
+function filterUsersList(){
+  const input = document.getElementById('user-search-input');
+  const query = (input ? input.value : '').trim().toLowerCase();
+  let rows = Object.entries(USERS||{}).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+  if(query){
+    rows = rows.filter(([id,u])=>
+      (u.name||'').toLowerCase().includes(query) || (u.uid||'').toLowerCase().includes(query)
+    );
+  }
+  const list = document.getElementById('users-results-list');
+  if(!list) return;
+  list.innerHTML = rows.map(([id,u])=>`
+    <div class="task-card">
+      <div class="task-top"><div style="font-weight:700;">${escapeHtml(u.name)}</div><div class="num">৳${(u.balance||0).toFixed(2)}</div></div>
+      <div class="task-desc">UID: ${u.uid} · Wallet: ${u.walletMethod?u.walletMethod+' ':''}${u.walletNumber||'—'} · Device: ${u.deviceId} · Referrals: ${u.referrals||0} · Tasks: ${u.tasksDone||0}</div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <input type="number" placeholder="+/- amount" id="adj-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
+        <button class="btn btn-primary" style="padding:9px 14px; width:auto;" onclick="adminAdjustBalance('${id}')">Apply</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input placeholder="পার্সোনাল নোটিশ লিখুন" id="notice-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:12.5px;">
+        <button class="btn btn-outline" style="padding:9px 14px; width:auto; font-size:12px;" onclick="sendPersonalNotice('${id}')">পাঠান</button>
+      </div>
+      <button class="btn ${u.canEditWallet?'btn-danger':'btn-outline'}" style="margin-top:8px; padding:8px; font-size:12px;" onclick="toggleWalletEditPermission('${id}', ${!u.canEditWallet})">
+        ${u.canEditWallet ? '🔓 Wallet Edit চালু আছে (বন্ধ করতে ট্যাপ করুন)' : '🔒 Wallet Edit পারমিশন দিন'}
+      </button>
+    </div>`).join('') || '<div class="empty-state">কোনো ইউজার পাওয়া যায়নি</div>';
 }
 
 function toggleWalletEditPermission(userId, allow){
@@ -473,6 +494,10 @@ function sendBroadcastNotice(){
   db.ref('notifications_broadcast').push({message:msg, at:Date.now()});
   document.getElementById('broadcast-msg').value = '';
   showToast('সবাইকে পাঠানো হয়েছে');
+}
+function deleteBroadcastNotice(id){
+  db.ref('notifications_broadcast/'+id).remove();
+  showToast('ডিলিট হয়েছে');
 }
 
 function saveDevCredit(){
