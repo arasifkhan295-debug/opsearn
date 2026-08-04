@@ -234,11 +234,15 @@ function renderAdmin(){
     box.innerHTML = rows.map(([id,t])=>`
       <div class="task-card">
         <div class="task-top"><div style="font-weight:700;">${escapeHtml(t.title)}</div><span class="badge ${t.status}">${t.status}</span></div>
-        <div class="task-desc">${t.category} · ৳${t.pay} · ${t.completedCount||0}/${t.slots} slots</div>
+        <div class="task-desc">${t.category} · ৳${t.pay} · ${t.completedCount||0}/${t.slots} slots · এসক্রোতে আছে: ৳${t.escrowRemaining!==undefined ? t.escrowRemaining : '০ (পুরনো টাস্ক, নিচে থেকে যোগ করুন)'}</div>
         <div style="display:flex; gap:8px; margin-top:10px;">
           ${t.status!=='approved' ? `<button class="btn btn-primary" style="padding:9px;" onclick="adminSetTaskStatus('${id}','approved')">Approve</button>`:''}
           ${t.status!=='rejected' ? `<button class="btn btn-outline" style="padding:9px;" onclick="adminSetTaskStatus('${id}','rejected')">Reject</button>`:''}
           <button class="btn btn-danger" style="padding:9px;" onclick="adminDeleteTask('${id}')">Delete</button>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <input type="number" placeholder="এসক্রোতে ৳ যোগ করুন" id="escrow-${id}" style="flex:1; border:1.5px solid var(--line); border-radius:10px; padding:8px;">
+          <button class="btn btn-amber" style="padding:9px 14px; width:auto;" onclick="adminTopUpEscrow('${id}')">যোগ করুন</button>
         </div>
       </div>`).join('') || '<div class="empty-state">কোনো টাস্ক নেই</div>';
   }
@@ -556,6 +560,12 @@ function copyText(text, btnEl){
 
 function adminSetTaskStatus(id,status){ db.ref('tasks/'+id+'/status').set(status); showToast('আপডেট হয়েছে'); }
 function adminDeleteTask(id){ db.ref('tasks/'+id).remove(); }
+function adminTopUpEscrow(id){
+  const amount = Number(document.getElementById('escrow-'+id).value);
+  if(!amount) return;
+  db.ref('tasks/'+id+'/escrowRemaining').transaction(v=>(v||0)+amount);
+  showToast('এসক্রোতে ৳'+amount+' যোগ হয়েছে');
+}
 
 function adminReviewSubmission(id, status){
   const s = SUBMISSIONS[id];
